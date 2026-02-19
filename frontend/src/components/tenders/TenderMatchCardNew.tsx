@@ -1,4 +1,5 @@
-import { CalendarDays, Download, MapPin, Share2 } from "lucide-react";
+import { CalendarDays, Download, IndianRupee, MapPin, Share2 } from "lucide-react";
+import { format } from "date-fns";
 
 import { downloadTenderUrl } from "@/services/tenderAgentApi";
 import { MatchItem } from "@/types/tender-agent";
@@ -12,31 +13,40 @@ interface TenderMatchCardProps {
 
 const badgeClass = "rounded-full border border-[#d6dae8] px-2 py-0.5 text-[11px] text-[#646d84]";
 
+const safeDate = (value?: string) => {
+  if (!value) return "N/A";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return String(value).slice(0, 10);
+  }
+  return format(parsed, "d MMM yyyy");
+};
+
 const TenderMatchCard = ({ item, onOpen, onAction, onShare }: TenderMatchCardProps) => {
   const tender = item.tender;
   const meta = tender.metadata || {};
   const scraped = tender.scraped_info || {};
-  const title = meta.title || scraped.items || tender.bid_id;
+  const title = meta.title || scraped.items || tender.bid_id || "Tender";
   const department = meta.department || scraped.department || "Department";
-  const location = meta.location || "India";
+  const location = meta.location || department || "India";
   const scorePercent = Math.round((item.match?.score || 0) * 100);
 
   return (
-    <div className="rounded-xl border border-[#d8dce6] bg-white p-4 shadow-sm">
+    <div className="rounded-xl border border-[#d8dce6] bg-white p-4 shadow-sm transition hover:border-[#bfc5d8]">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <button
             onClick={() => onOpen(tender.id)}
             className="truncate text-left text-lg font-semibold text-[#1f2533] hover:text-[#4040E0] md:text-xl"
           >
-            {department}
+            {title}
           </button>
           <div className="mt-2 flex items-center gap-2 text-[13px] text-[#666e83]">
             <MapPin size={13} />
             <span>{location}</span>
             <span>•</span>
             <CalendarDays size={13} />
-            <span>Published {String(scraped.start_date || "N/A").slice(0, 10)}</span>
+            <span>Published {safeDate(scraped.start_date)}</span>
           </div>
           <div className="mt-2 flex flex-wrap gap-2">
             <span className="rounded-full bg-[#4040E0] px-2 py-1 text-[10px] text-white">GeM</span>
@@ -47,7 +57,7 @@ const TenderMatchCard = ({ item, onOpen, onAction, onShare }: TenderMatchCardPro
               </span>
             ))}
           </div>
-          <p className="mt-2 line-clamp-2 text-sm text-[#5f667a]">{meta.summary || title}</p>
+          <p className="mt-2 line-clamp-2 text-sm text-[#5f667a]">{meta.summary || department}</p>
         </div>
 
         <div className="flex h-[86px] w-[86px] flex-col items-center justify-center rounded-full border-4 border-[#4040E0] text-center">
@@ -58,8 +68,11 @@ const TenderMatchCard = ({ item, onOpen, onAction, onShare }: TenderMatchCardPro
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[#ebedf4] pt-3">
         <div className="flex items-center gap-4 text-sm text-[#525a70]">
-          <span className="font-medium text-[#159d76]">{scraped.bid_value_range || meta.estimated_value || "N/A"}</span>
-          <span className="text-[#d75252]">{String(scraped.end_date || "N/A").slice(0, 10)}</span>
+          <span className="inline-flex items-center gap-1 font-medium text-[#159d76]">
+            <IndianRupee size={14} />
+            {scraped.bid_value_range || meta.estimated_value || "N/A"}
+          </span>
+          <span className="text-[#d75252]">{safeDate(scraped.end_date)}</span>
         </div>
 
         <div className="flex flex-wrap gap-2">
