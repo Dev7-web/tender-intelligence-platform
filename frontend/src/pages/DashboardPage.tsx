@@ -7,6 +7,10 @@ import { useQuery } from "@tanstack/react-query";
 import { getCompanyId } from "@/lib/auth";
 import { fetchDashboardReport, fetchDashboardStats, triggerScrapeAnalyze } from "@/services/tenderAgentApi";
 import { useToastSimple } from "@/components/ui/toaster-simple";
+import totalAnalyzedIcon from "@/assets/dashboard/total-analyzed.svg";
+import bestFoundIcon from "@/assets/dashboard/best-found.svg";
+import savedIcon from "@/assets/dashboard/saved.svg";
+import appliedIcon from "@/assets/dashboard/applied.svg";
 
 const DashboardPage = () => {
   const companyId = getCompanyId() || undefined;
@@ -42,18 +46,26 @@ const DashboardPage = () => {
     {
       title: "TOTAL TENDERS ANALYZED",
       value: stats?.totals.tenders_analyzed || 0,
+      icon: totalAnalyzedIcon,
+      iconAlt: "Total tenders analyzed icon",
     },
     {
       title: "BEST TENDERS FOUND",
       value: stats?.totals.best_tenders_found || 0,
+      icon: bestFoundIcon,
+      iconAlt: "Best tenders found icon",
     },
     {
       title: "TENDERS SAVED",
       value: stats?.totals.tenders_saved || 0,
+      icon: savedIcon,
+      iconAlt: "Tenders saved icon",
     },
     {
       title: "TENDERS APPLIED",
       value: stats?.totals.tenders_applied || 0,
+      icon: appliedIcon,
+      iconAlt: "Tenders applied icon",
     },
   ];
 
@@ -92,7 +104,10 @@ const DashboardPage = () => {
         {cards.map((card) => (
           <div key={card.title} className="rounded-xl border border-[#d8dce6] bg-white p-4">
             <p className="text-xs tracking-[0.2em] text-[#8a92a7]">{card.title}</p>
-            <p className="mt-1 text-3xl font-semibold text-[#1f2533]">{card.value}</p>
+            <div className="mt-1 flex items-end justify-between gap-3">
+              <p className="text-3xl font-semibold text-[#1f2533]">{card.value}</p>
+              <img src={card.icon} alt={card.iconAlt} className="h-9 w-9 shrink-0 object-contain md:h-10 md:w-10" />
+            </div>
           </div>
         ))}
       </div>
