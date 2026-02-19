@@ -1,0 +1,47 @@
+# Web Framework
+fastapi
+uvicorn[standard]
+python-multipart
+pydantic
+pydantic-settings
+
+# Database
+motor
+pymongo
+
+# Scraping
+playwright
+beautifulsoup4
+lxml
+aiohttp
+
+# Document Processing
+PyMuPDF
+python-docx
+python-pptx
+
+# LLM - Gemini
+google-generativeai
+
+# Embeddings
+sentence-transformers
+numpy
+
+# Utilities
+python-dotenv
+httpx
+tenacity
+aiofiles
+python-dateutil
+PyJWT
+
+# Scheduling
+apscheduler
+
+# Logging
+structlog
+
+# Testing
+pytest
+pytest-asyncio
+pytest-cov
