@@ -139,7 +139,7 @@ const TendersPage = () => {
         <p className="text-sm text-[#7d8599]">{data?.total || 0} results</p>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[250px_1fr]">
+      <div className="grid gap-5 xl:grid-cols-[250px_minmax(0,1fr)]">
         <aside className="rounded-xl border border-[#d8dce6] bg-white">
           <div className="flex items-center justify-between px-4 py-3">
             <h2 className="text-xl font-semibold text-[#283043]">Filters</h2>
@@ -289,7 +289,7 @@ const TendersPage = () => {
           </div>
         </aside>
 
-        <section>
+        <section className="min-w-0">
           <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
             <div className="flex items-end gap-2">
               <div>

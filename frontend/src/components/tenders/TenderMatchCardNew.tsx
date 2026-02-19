@@ -37,13 +37,13 @@ const TenderMatchCard = ({ item, onOpen, onAction, onShare }: TenderMatchCardPro
         <div className="min-w-0 flex-1">
           <button
             onClick={() => onOpen(tender.id)}
-            className="truncate text-left text-lg font-semibold text-[#1f2533] hover:text-[#4040E0] md:text-xl"
+            className="block w-full truncate text-left text-lg font-semibold text-[#1f2533] hover:text-[#4040E0] md:text-xl"
           >
             {title}
           </button>
-          <div className="mt-2 flex items-center gap-2 text-[13px] text-[#666e83]">
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-[13px] text-[#666e83]">
             <MapPin size={13} />
-            <span>{location}</span>
+            <span className="min-w-0 break-words">{location}</span>
             <span>•</span>
             <CalendarDays size={13} />
             <span>Published {safeDate(scraped.start_date)}</span>
@@ -57,7 +57,7 @@ const TenderMatchCard = ({ item, onOpen, onAction, onShare }: TenderMatchCardPro
               </span>
             ))}
           </div>
-          <p className="mt-2 line-clamp-2 text-sm text-[#5f667a]">{meta.summary || department}</p>
+          <p className="mt-2 break-words text-sm text-[#5f667a]">{meta.summary || department}</p>
         </div>
 
         <div className="flex h-[86px] w-[86px] flex-col items-center justify-center rounded-full border-4 border-[#4040E0] text-center">
