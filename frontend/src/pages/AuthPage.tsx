@@ -5,7 +5,7 @@ import { isAxiosError } from "axios";
 import AuthShell from "@/components/layout/AuthShell";
 import { useToastSimple } from "@/components/ui/toaster-simple";
 import { AuthUser, setToken, setUser } from "@/lib/auth";
-import { authGoogleStart, authSignIn, authSignUp } from "@/services/tenderAgentApi";
+import { authSignIn, authSignUp } from "@/services/tenderAgentApi";
 
 type AuthMode = "signup" | "signin";
 
@@ -24,7 +24,6 @@ const AuthPage = () => {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
   const { pushToast } = useToastSimple();
   const navigate = useNavigate();
 
@@ -94,21 +93,8 @@ const AuthPage = () => {
     }
   };
 
-  const handleGoogle = async () => {
-    setGoogleLoading(true);
-    try {
-      const response = await authGoogleStart();
-      if (response.enabled && response.auth_url) {
-        window.location.href = response.auth_url;
-        return;
-      }
-      pushToast(response.message || "Google OAuth is not configured", "info");
-    } catch (error: unknown) {
-      pushToast(getApiErrorMessage(error) || "Unable to start Google sign-in", "error");
-    } finally {
-      setGoogleLoading(false);
-    }
-  };
+  // Google sign-in is intentionally disabled for now.
+  // We can re-enable `authGoogleStart` flow once OAuth is finalized.
 
   const toggleMode = () => {
     setMode((prev) => (prev === "signup" ? "signin" : "signup"));
@@ -183,21 +169,15 @@ const AuthPage = () => {
 
         <button
           onClick={handleSubmit}
-          disabled={loading || googleLoading}
+          disabled={loading}
           className="mt-6 h-12 w-full rounded-md bg-[#4040E0] text-lg font-medium text-white disabled:opacity-60"
         >
           {loading ? "Please wait..." : mode === "signup" ? "Sign Up" : "Sign In"}
         </button>
 
-        <p className="mt-4 text-center text-sm text-[#767f95]">OR</p>
-
-        <button
-          className="mt-3 h-11 w-full rounded-md bg-[#dd4b39] text-base font-medium text-white disabled:opacity-60"
-          onClick={handleGoogle}
-          disabled={loading || googleLoading}
-        >
-          {googleLoading ? "Opening Google..." : "Continue with Google"}
-        </button>
+        {/* <div className="mt-4 rounded-md border border-[#e2e5ef] bg-[#eef0f6] px-3 py-2 text-center text-xs text-[#7a8094]">
+          Continue with Google is temporarily disabled.
+        </div> */}
 
         <p className="mt-8 text-center text-sm text-[#6d7487]">
           {mode === "signup" ? "Already have an account?" : "Need an account?"}{" "}
@@ -205,15 +185,11 @@ const AuthPage = () => {
             type="button"
             onClick={toggleMode}
             className="font-medium text-[#4040E0]"
-            disabled={loading || googleLoading}
+            disabled={loading}
           >
             {mode === "signup" ? "Sign in" : "Sign up"}
           </button>
         </p>
-
-        <div className="mt-2 text-center text-xs text-[#8a90a4]">
-          Google login requires backend OAuth configuration before it can be used in production.
-        </div>
       </div>
     </AuthShell>
   );
