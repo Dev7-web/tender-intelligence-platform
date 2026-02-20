@@ -18,11 +18,16 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 @router.get("/stats", response_model=Dict[str, Any])
 async def get_dashboard_stats(
     company_id: str | None = None,
+    overview_range: str = "7d",
     db: AsyncIOMotorDatabase = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     service = DashboardService(db)
-    return await service.get_stats(owner_user_id=current_user["id"], company_id=company_id)
+    return await service.get_stats(
+        owner_user_id=current_user["id"],
+        company_id=company_id,
+        overview_range=overview_range,
+    )
 
 
 @router.get("/report", response_model=Dict[str, Any])

@@ -75,6 +75,13 @@ export interface DashboardStats {
     tenders_saved: number;
     tenders_applied: number;
   };
+  overview_range?: "7d" | "10d" | "6m" | "12m";
+  overview?: {
+    gathering: number;
+    analyzed: number;
+    saved: number;
+    applied: number;
+  };
   overview_last_7_days: {
     gathering: number;
     analyzed: number;

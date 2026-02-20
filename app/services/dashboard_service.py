@@ -26,7 +26,12 @@ class DashboardService:
         self.actions = db.get_collection("tender_actions")
         self.match_service = MatchService(db)
 
-    async def get_stats(self, owner_user_id: str, company_id: str | None = None) -> Dict[str, Any]:
+    async def get_stats(
+        self,
+        owner_user_id: str,
+        company_id: str | None = None,
+        overview_range: str = "7d",
+    ) -> Dict[str, Any]:
         profile = None
         if company_id:
             profile = await self.companies.find_one({"company_id": company_id, "owner_user_id": owner_user_id})
@@ -58,15 +63,16 @@ class DashboardService:
             saved_count = await self.actions.count_documents({"company_id": active_company_id, "action": "saved"})
             applied_count = await self.actions.count_documents({"company_id": active_company_id, "action": "applied"})
 
+        normalized_range = self._normalize_overview_range(overview_range)
+        selected_start = self._overview_start_from_range(normalized_range)
+        overview = await self._overview_counts(active_company_id, selected_start)
+
         seven_days_ago = utcnow() - timedelta(days=7)
-        gathering = await self.tenders.count_documents({"scraped_at": {"$gte": seven_days_ago}})
-        analyzed = await self.tenders.count_documents({"processed_at": {"$gte": seven_days_ago}})
-        saved_recent = await self.actions.count_documents(
-            {"company_id": active_company_id, "action": "saved", "updated_at": {"$gte": seven_days_ago}}
-        ) if active_company_id else 0
-        applied_recent = await self.actions.count_documents(
-            {"company_id": active_company_id, "action": "applied", "updated_at": {"$gte": seven_days_ago}}
-        ) if active_company_id else 0
+        overview_last_7_days = (
+            overview
+            if normalized_range == "7d"
+            else await self._overview_counts(active_company_id, seven_days_ago)
+        )
 
         return {
             "company_id": active_company_id,
@@ -77,12 +83,9 @@ class DashboardService:
                 "tenders_saved": saved_count,
                 "tenders_applied": applied_count,
             },
-            "overview_last_7_days": {
-                "gathering": gathering,
-                "analyzed": analyzed,
-                "saved": saved_recent,
-                "applied": applied_recent,
-            },
+            "overview_range": normalized_range,
+            "overview": overview,
+            "overview_last_7_days": overview_last_7_days,
         }
 
     async def get_report(
@@ -205,3 +208,37 @@ class DashboardService:
             starts.append(month)
             labels.append(month.strftime("%b"))
         return labels, starts
+
+    async def _overview_counts(self, company_id: str | None, start: datetime) -> Dict[str, int]:
+        gathering = await self.tenders.count_documents({"scraped_at": {"$gte": start}})
+        analyzed = await self.tenders.count_documents({"processed_at": {"$gte": start}})
+        saved = (
+            await self.actions.count_documents({"company_id": company_id, "action": "saved", "updated_at": {"$gte": start}})
+            if company_id
+            else 0
+        )
+        applied = (
+            await self.actions.count_documents({"company_id": company_id, "action": "applied", "updated_at": {"$gte": start}})
+            if company_id
+            else 0
+        )
+        return {
+            "gathering": gathering,
+            "analyzed": analyzed,
+            "saved": saved,
+            "applied": applied,
+        }
+
+    def _normalize_overview_range(self, range_key: str | None) -> str:
+        normalized = (range_key or "7d").lower()
+        return normalized if normalized in {"7d", "10d", "6m", "12m"} else "7d"
+
+    def _overview_start_from_range(self, range_key: str) -> datetime:
+        now = utcnow()
+        if range_key == "10d":
+            return now - timedelta(days=10)
+        if range_key == "6m":
+            return now - timedelta(days=180)
+        if range_key == "12m":
+            return now - timedelta(days=365)
+        return now - timedelta(days=7)

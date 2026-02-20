@@ -7,26 +7,41 @@ import { useQuery } from "@tanstack/react-query";
 import { getCompanyId } from "@/lib/auth";
 import { fetchDashboardReport, fetchDashboardStats, triggerScrapeAnalyze } from "@/services/tenderAgentApi";
 import { useToastSimple } from "@/components/ui/toaster-simple";
-import totalAnalyzedIcon from "@/assets/dashboard/total-analyzed.svg";
+import totalAnalyzedIcon from "@/assets/dashboard/total-analyzed-card-icon.svg";
 import bestFoundIcon from "@/assets/dashboard/best-found.svg";
 import savedIcon from "@/assets/dashboard/saved.svg";
 import appliedIcon from "@/assets/dashboard/applied.svg";
+import findMatchingTendersButton from "@/assets/dashboard/find-matching-tenders-button.svg";
+import reportGatheringDot from "@/assets/dashboard/report-gathering-dot.svg";
+import reportAnalyzeDot from "@/assets/dashboard/report-analyze-dot.svg";
+import reportSavedDot from "@/assets/dashboard/report-saved-dot.svg";
+import reportGatheringBar from "@/assets/dashboard/report-gathering-bar.svg";
+import reportAnalyzeBar from "@/assets/dashboard/report-analyze-bar.svg";
+import reportSavedBar from "@/assets/dashboard/report-saved-bar-alt.svg";
 
 const DashboardPage = () => {
   const companyId = getCompanyId() || undefined;
   const navigate = useNavigate();
   const { pushToast } = useToastSimple();
-  const [range, setRange] = useState("12m");
+  const [reportRange, setReportRange] = useState("12m");
+  const [overviewRange, setOverviewRange] = useState("7d");
+
+  const rangeOptions = [
+    { value: "7d", label: "7 Days" },
+    { value: "10d", label: "10 Days" },
+    { value: "6m", label: "6 Months" },
+    { value: "12m", label: "12 Months" },
+  ] as const;
 
   const { data: stats } = useQuery({
-    queryKey: ["dashboardStats", companyId],
-    queryFn: () => fetchDashboardStats(companyId),
+    queryKey: ["dashboardStats", companyId, overviewRange],
+    queryFn: () => fetchDashboardStats(companyId, overviewRange),
     enabled: Boolean(companyId),
   });
 
   const { data: report } = useQuery({
-    queryKey: ["dashboardReport", companyId, range],
-    queryFn: () => fetchDashboardReport(range, companyId),
+    queryKey: ["dashboardReport", companyId, reportRange],
+    queryFn: () => fetchDashboardReport(reportRange, companyId),
     enabled: Boolean(companyId),
   });
 
@@ -41,6 +56,13 @@ const DashboardPage = () => {
   }, [report]);
 
   const todayText = `Today is ${format(new Date(), "EEEE, d MMMM yyyy")}`;
+
+  const reportLegend = [
+    { label: "Gathering", dot: reportGatheringDot },
+    { label: "Analyze", dot: reportAnalyzeDot },
+    { label: "Saved", dot: reportSavedDot },
+  ];
+  const selectedOverview = stats?.overview || stats?.overview_last_7_days;
 
   const cards = [
     {
@@ -93,9 +115,9 @@ const DashboardPage = () => {
           </button>
           <button
             onClick={() => navigate("/tenders")}
-            className="h-11 rounded-full bg-[#4040E0] px-7 text-base text-white"
+            className="h-[50px] w-[250px] shrink-0 overflow-hidden rounded-[18px]"
           >
-            Find Matching Tenders
+            <img src={findMatchingTendersButton} alt="Find Matching Tenders" className="h-full w-full object-cover" />
           </button>
         </div>
       </div>
@@ -116,55 +138,119 @@ const DashboardPage = () => {
         <div className="rounded-xl border border-[#d8dce6] bg-white p-4">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-xl font-semibold text-[#262b38]">Tenders Report</h2>
-            <select
-              value={range}
-              onChange={(event) => setRange(event.target.value)}
-              className="rounded border border-[#d3d7e2] bg-white px-2 py-1 text-xs"
-            >
-              <option value="7d">7 Days</option>
-              <option value="10d">10 Days</option>
-              <option value="6m">6 Months</option>
-              <option value="12m">12 Months</option>
-            </select>
+            <div className="flex items-center gap-2">
+              {rangeOptions.map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => setReportRange(option.value)}
+                  className={[
+                    "h-8 rounded-md px-3 text-xs transition",
+                    reportRange === option.value
+                      ? "border border-[#b7bdca] bg-white font-medium text-[#1f2533]"
+                      : "text-[#7f8799] hover:text-[#4e5567]",
+                  ].join(" ")}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="h-[320px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData}>
-                <CartesianGrid stroke="#eef0f5" vertical={false} />
-                <XAxis dataKey="label" fontSize={11} />
-                <YAxis fontSize={11} />
-                <Tooltip />
-                <Bar dataKey="gathering" fill="#b4b8ff" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="analyze" fill="#4040E0" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="saved" fill="#2028a8" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="flex h-[320px] gap-4">
+            <div className="min-w-0 flex-1">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} barSize={4}>
+                  <CartesianGrid stroke="#eef0f5" vertical={false} />
+                  <XAxis dataKey="label" fontSize={11} />
+                  <YAxis fontSize={11} />
+                  <Tooltip />
+                  <Bar
+                    dataKey="gathering"
+                    shape={(props: any) => (
+                      <image
+                        href={reportGatheringBar}
+                        x={props.x}
+                        y={props.y}
+                        width={props.width}
+                        height={props.height}
+                        preserveAspectRatio="none"
+                      />
+                    )}
+                  />
+                  <Bar
+                    dataKey="analyze"
+                    shape={(props: any) => (
+                      <image
+                        href={reportAnalyzeBar}
+                        x={props.x}
+                        y={props.y}
+                        width={props.width}
+                        height={props.height}
+                        preserveAspectRatio="none"
+                      />
+                    )}
+                  />
+                  <Bar
+                    dataKey="saved"
+                    shape={(props: any) => (
+                      <image
+                        href={reportSavedBar}
+                        x={props.x}
+                        y={props.y}
+                        width={props.width}
+                        height={props.height}
+                        preserveAspectRatio="none"
+                      />
+                    )}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="w-[90px] pt-6">
+              <div className="space-y-2 text-sm text-[#3f4759]">
+                {reportLegend.map((item) => (
+                  <div key={item.label} className="flex items-center gap-2">
+                    <img src={item.dot} alt={`${item.label} legend dot`} className="h-2 w-2 shrink-0" />
+                    <span>{item.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
         <div className="rounded-xl border border-[#d8dce6] bg-white p-4">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-xl font-semibold text-[#262b38]">Tenders Overview</h2>
-            <p className="text-xs text-[#7f8799]">Last 7 Days</p>
+            <select
+              value={overviewRange}
+              onChange={(event) => setOverviewRange(event.target.value)}
+              className="rounded border border-transparent bg-transparent px-1 py-1 text-xs font-medium text-[#1f2533] outline-none"
+            >
+              {rangeOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="space-y-4 text-sm text-[#434a5f]">
             <div className="flex justify-between">
               <span>Tenders Gathering</span>
-              <strong>{stats?.overview_last_7_days.gathering || 0}</strong>
+              <strong>{selectedOverview?.gathering || 0}</strong>
             </div>
             <div className="flex justify-between">
               <span>Tenders Analyzed</span>
-              <strong>{stats?.overview_last_7_days.analyzed || 0}</strong>
+              <strong>{selectedOverview?.analyzed || 0}</strong>
             </div>
             <div className="flex justify-between">
               <span>Tenders Saved</span>
-              <strong>{stats?.overview_last_7_days.saved || 0}</strong>
+              <strong>{selectedOverview?.saved || 0}</strong>
             </div>
             <div className="flex justify-between">
               <span>Tenders Applied</span>
-              <strong>{stats?.overview_last_7_days.applied || 0}</strong>
+              <strong>{selectedOverview?.applied || 0}</strong>
             </div>
           </div>
         </div>

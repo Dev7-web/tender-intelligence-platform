@@ -75,9 +75,9 @@ export const fetchCompanyProfile = async (companyId: string) => {
   return data;
 };
 
-export const fetchDashboardStats = async (companyId?: string) => {
+export const fetchDashboardStats = async (companyId?: string, overviewRange = "7d") => {
   const { data } = await api.get<DashboardStats>("/dashboard/stats", {
-    params: { company_id: companyId },
+    params: { company_id: companyId, overview_range: overviewRange },
   });
   return data;
 };
