@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from tenacity import RetryError
 
 from app.database.repositories.tender_repo import TenderRepository
 from app.processors.embedder import TextEmbedder
@@ -32,6 +33,16 @@ class TenderService:
         return self._llm
 
     async def create_or_update_from_scrape(self, bid: Dict[str, Any]) -> str:
+        bid_id = bid.get("bid_id")
+        if not bid_id:
+            raise ValueError("Missing bid_id in scraped tender data")
+
+        existing = await self.repo.get_by_bid_id(bid_id) if bid_id else None
+        existing_status = (existing or {}).get("status", {})
+        existing_pdf_url = (existing or {}).get("pdf_url")
+        incoming_pdf_url = bid.get("pdf_url") or existing_pdf_url
+        pdf_url_changed = bool(existing and existing_pdf_url and incoming_pdf_url and existing_pdf_url != incoming_pdf_url)
+
         now = datetime.now(timezone.utc)
         scraped_info = {
             "items": bid.get("items"),
@@ -43,18 +54,12 @@ class TenderService:
             "bid_type": bid.get("bid_type"),
             "bid_value_range": bid.get("bid_value_range"),
         }
-        status = {
-            "scrape_status": "completed",
-            "pdf_downloaded": False,
-            "llm_processed": False,
-            "embedding_generated": False,
-            "last_error": None,
-        }
+        status = self._status_from_scrape(existing_status, pdf_url_changed)
         data = {
-            "bid_id": bid.get("bid_id"),
+            "bid_id": bid_id,
             "ra_no": bid.get("ra_no"),
-            "gem_url": bid.get("gem_url"),
-            "pdf_url": bid.get("pdf_url"),
+            "gem_url": bid.get("gem_url") or incoming_pdf_url,
+            "pdf_url": incoming_pdf_url,
             "portal": "gem",
             "scraped_info": scraped_info,
             "status": status,
@@ -63,27 +68,50 @@ class TenderService:
             "is_active": True,
             "expired": False,
         }
-        return await self.repo.upsert_by_bid_id(bid.get("bid_id"), data)
+        if pdf_url_changed:
+            data.update(
+                {
+                    "pdf_local_path": None,
+                    "metadata": None,
+                    "summary_embedding": None,
+                    "processed_at": None,
+                }
+            )
+        return await self.repo.upsert_by_bid_id(bid_id, data)
 
     async def process_tender(self, bid_id: str) -> bool:
         tender = await self.repo.get_by_bid_id(bid_id)
         if not tender:
             return False
 
-        status = tender.get("status", {})
+        status = dict(tender.get("status") or {})
+        pdf_path = tender.get("pdf_local_path")
         try:
-            if not status.get("pdf_downloaded"):
+            if not status.get("pdf_downloaded") or not pdf_path:
                 pdf_path = await download_with_retry(tender.get("pdf_url"), filename_hint=bid_id)
                 if not pdf_path:
-                    status.update({"last_error": "PDF download failed"})
+                    status.update(
+                        {
+                            "pdf_downloaded": False,
+                            "llm_processed": False,
+                            "embedding_generated": False,
+                            "last_error": "PDF download failed",
+                        }
+                    )
                     await self.repo.set_status(bid_id, status)
                     return False
                 await self.repo.update(str(tender["_id"]), {"pdf_local_path": pdf_path})
                 status["pdf_downloaded"] = True
 
-            text = self.pdf_extractor.extract_text(tender.get("pdf_local_path"))
+            text = self.pdf_extractor.extract_text(pdf_path)
             if not text:
-                status.update({"last_error": "PDF extraction failed"})
+                status.update(
+                    {
+                        "llm_processed": False,
+                        "embedding_generated": False,
+                        "last_error": "PDF extraction failed",
+                    }
+                )
                 await self.repo.set_status(bid_id, status)
                 return False
 
@@ -93,6 +121,7 @@ class TenderService:
             summary = metadata.get("summary") if isinstance(metadata, dict) else None
             summary_embedding = self.embedder.embed(summary or "")
             status["embedding_generated"] = True
+            status["last_error"] = None
 
             await self.repo.update(
                 str(tender["_id"]),
@@ -105,10 +134,44 @@ class TenderService:
             )
             return True
         except Exception as exc:
-            status.update({"last_error": str(exc)})
+            error_message = self._normalize_error_message(exc)
+            status.update(
+                {
+                    "llm_processed": False,
+                    "embedding_generated": False,
+                    "last_error": error_message,
+                }
+            )
             await self.repo.set_status(bid_id, status)
-            logger.info("tender.process_failed", bid_id=bid_id, error=str(exc))
+            logger.info("tender.process_failed", bid_id=bid_id, error=error_message)
             return False
+
+    def _status_from_scrape(self, existing_status: Dict[str, Any], force_reprocess: bool) -> Dict[str, Any]:
+        if force_reprocess:
+            return {
+                "scrape_status": "completed",
+                "pdf_downloaded": False,
+                "llm_processed": False,
+                "embedding_generated": False,
+                "last_error": None,
+            }
+
+        llm_processed = bool(existing_status.get("llm_processed"))
+        return {
+            "scrape_status": "completed",
+            "pdf_downloaded": bool(existing_status.get("pdf_downloaded")),
+            "llm_processed": llm_processed,
+            "embedding_generated": bool(existing_status.get("embedding_generated")),
+            "last_error": None if llm_processed else existing_status.get("last_error"),
+        }
+
+    def _normalize_error_message(self, exc: Exception) -> str:
+        if isinstance(exc, RetryError):
+            last_attempt = getattr(exc, "last_attempt", None)
+            last_exc = last_attempt.exception() if last_attempt else None
+            if last_exc:
+                return str(last_exc)
+        return str(exc)
 
     async def list_tenders(
         self,

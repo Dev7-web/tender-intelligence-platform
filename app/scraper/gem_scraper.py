@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import random
+import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional
@@ -19,9 +20,6 @@ from app.scraper.parser import parse_bid_cards
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
-
-# Thread pool for running sync playwright
-_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="scraper")
 
 
 class GemScraper:
@@ -37,6 +35,11 @@ class GemScraper:
         self.page: Optional[Page] = None
         self.playwright = None
         self._initialized = False
+        # Playwright sync objects must stay on one thread for their lifetime.
+        self._executor: Optional[ThreadPoolExecutor] = ThreadPoolExecutor(
+            max_workers=1,
+            thread_name_prefix="gem-scraper",
+        )
 
     async def __aenter__(self):
         await self.initialize()
@@ -48,13 +51,12 @@ class GemScraper:
 
     async def initialize(self) -> None:
         """Initialize the scraper in a background thread."""
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(_executor, self._sync_initialize)
+        await self._run_in_executor(self._sync_initialize)
 
     def _sync_initialize(self) -> None:
         """Synchronous initialization - runs in thread."""
         logger.info("scraper.initializing", headless=settings.SCRAPER_HEADLESS)
-        self.playwright = sync_playwright().start()
+        self.playwright = self._start_playwright_with_windows_fallback()
         logger.info("scraper.playwright_started")
         self.browser = self.playwright.chromium.launch(
             headless=settings.SCRAPER_HEADLESS,
@@ -71,11 +73,37 @@ class GemScraper:
         logger.info("scraper.page_created")
         self._initialized = True
 
+    def _start_playwright_with_windows_fallback(self):
+        """Start Playwright and recover from Windows SelectorEventLoopPolicy limitations."""
+        if self._is_windows_selector_policy():
+            logger.warning(
+                "scraper.windows_selector_policy_detected",
+                message=(
+                    "WindowsSelectorEventLoopPolicy does not support asyncio subprocesses. "
+                    "Switching to WindowsProactorEventLoopPolicy for Playwright startup."
+                ),
+            )
+            asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+        return sync_playwright().start()
+
+    @staticmethod
+    def _is_windows_selector_policy() -> bool:
+        if sys.platform != "win32":
+            return False
+        selector_policy_type = getattr(asyncio, "WindowsSelectorEventLoopPolicy", None)
+        if selector_policy_type is None:
+            return False
+        return isinstance(asyncio.get_event_loop_policy(), selector_policy_type)
+
     async def close(self) -> None:
         """Close the scraper in a background thread."""
-        if self._initialized:
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(_executor, self._sync_close)
+        try:
+            if self._initialized:
+                await self._run_in_executor(self._sync_close)
+        finally:
+            if self._executor is not None:
+                self._executor.shutdown(wait=False, cancel_futures=True)
+                self._executor = None
 
     def _sync_close(self) -> None:
         """Synchronous close - runs in thread."""
@@ -91,10 +119,7 @@ class GemScraper:
         self, max_pages: Optional[int] = None, max_bids: Optional[int] = None
     ) -> List[Dict[str, Any]]:
         """Scrape bids from GeM listing pages."""
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            _executor, self._sync_scrape_bids, max_pages, max_bids
-        )
+        return await self._run_in_executor(self._sync_scrape_bids, max_pages, max_bids)
 
     def _sync_scrape_bids(
         self, max_pages: Optional[int] = None, max_bids: Optional[int] = None
@@ -172,3 +197,10 @@ class GemScraper:
         """Random delay between requests - runs in thread."""
         delay = random.uniform(settings.SCRAPE_MIN_DELAY, settings.SCRAPE_MAX_DELAY)
         time.sleep(delay)
+
+    async def _run_in_executor(self, func, *args):
+        executor = self._executor
+        if executor is None:
+            raise RuntimeError("Scraper executor is not available")
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(executor, lambda: func(*args))

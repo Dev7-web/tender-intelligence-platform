@@ -63,17 +63,29 @@ async def run_scrape_job() -> None:
 
             total_bids = max(len(bids), 1)
             for index, bid in enumerate(bids, start=1):
+                bid_id = bid.get("bid_id")
                 try:
                     await service.create_or_update_from_scrape(bid)
                     stats["new_tenders"] += 1
-                    if await service.process_tender(bid.get("bid_id")):
+                    if await service.process_tender(bid_id):
                         stats["pdfs_downloaded"] += 1
                         stats["llm_processed"] += 1
+                    else:
+                        stats["errors"] += 1
+                        tender = await service.repo.get_by_bid_id(bid_id) if bid_id else None
+                        last_error = ((tender or {}).get("status") or {}).get("last_error") or "Tender processing failed"
+                        errors.append(
+                            {
+                                "bid_id": bid_id,
+                                "error": last_error,
+                                "timestamp": utcnow(),
+                            }
+                        )
                 except Exception as exc:
                     stats["errors"] += 1
                     errors.append(
                         {
-                            "bid_id": bid.get("bid_id"),
+                            "bid_id": bid_id,
                             "error": str(exc),
                             "timestamp": utcnow(),
                         }
