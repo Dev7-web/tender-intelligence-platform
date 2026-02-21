@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, X } from "lucide-react";
 
 import searchIcon from "@/assets/tenders/search.svg";
@@ -30,6 +30,8 @@ const TendersPage = () => {
   const [sort, setSort] = useState("best_match");
   const [page, setPage] = useState(1);
   const [selectedShareTenderId, setSelectedShareTenderId] = useState<string | null>(null);
+  const [sortOpen, setSortOpen] = useState(false);
+  const sortRef = useRef<HTMLDivElement | null>(null);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     state: false,
     city: false,
@@ -100,6 +102,20 @@ const TendersPage = () => {
 
   const totalPages = Math.max(1, Math.ceil((data?.total || 0) / (data?.limit || 1)));
 
+  const sortLabel = sort === "latest" ? "Latest" : "Best Match (>80%)";
+
+  useEffect(() => {
+    if (!sortOpen) return;
+    const handleClick = (event: MouseEvent) => {
+      if (!sortRef.current) return;
+      if (!sortRef.current.contains(event.target as Node)) {
+        setSortOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [sortOpen]);
+
   const handleSearch = () => {
     setPage(1);
     setSearch(searchDraft);
@@ -141,26 +157,48 @@ const TendersPage = () => {
           <h1 className="text-[22px] font-semibold text-[#1f2533] md:text-[28px]">Current Active Tenders</h1>
           <p className="text-xs text-[#8a93a8] md:text-sm">{data?.total || 0} results</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[11px] font-medium text-[#6f768b]">Sort By</span>
-          <div className="relative h-9 min-w-[170px]">
-            <select
-              value={sort}
-              onChange={(event) => {
-                setPage(1);
-                setSort(event.target.value);
-              }}
-              className="h-9 w-full appearance-none rounded-md border border-[#d8dce6] bg-[linear-gradient(to_right,#ffffff_0,#ffffff_calc(100%-2.25rem),#f2f4f8_calc(100%-2.25rem),#f2f4f8_100%)] pl-3 pr-9 text-[12px] font-semibold text-[#232937]"
-            >
-              <option value="best_match">Best Match (&gt;80%)</option>
-              <option value="latest">Latest</option>
-            </select>
-            <span className="pointer-events-none absolute right-0 top-0 flex h-full w-9 items-center justify-center border-l border-[#e1e5f0] text-[#7b8293]">
-              <ChevronDown size={16} />
-            </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-medium text-[#6f768b]">Sort By</span>
+            <div ref={sortRef} className="relative min-w-[170px]">
+              <button
+                type="button"
+                onClick={() => setSortOpen((prev) => !prev)}
+                className="flex h-9 w-full items-center rounded-md border border-[#d8dce6] bg-[#f2f4f8] pl-1 text-left focus:outline-none"
+              >
+                <span className="flex h-7 flex-1 items-center rounded-[6px] bg-white px-2 text-[12px] font-semibold text-[#232937]">
+                  {sortLabel}
+                </span>
+                <span className="flex h-full w-9 items-center justify-center border-l border-[#e1e5f0] text-[#7b8293]">
+                  <ChevronDown size={16} className={sortOpen ? "rotate-180" : ""} />
+                </span>
+              </button>
+              {sortOpen ? (
+                <div className="absolute right-0 z-10 mt-1 w-full overflow-hidden rounded-md border border-[#d8dce6] bg-white text-[12px] shadow-sm">
+                  {[
+                    { value: "best_match", label: "Best Match (>80%)" },
+                    { value: "latest", label: "Latest" },
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => {
+                        setPage(1);
+                        setSort(option.value);
+                        setSortOpen(false);
+                      }}
+                      className={[
+                        "w-full px-3 py-2 text-left hover:bg-[#eef1f7]",
+                        option.value === sort ? "bg-[#f2f4ff] font-semibold text-[#232937]" : "text-[#232937]",
+                      ].join(" ")}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
-      </div>
 
       <div className="grid gap-5 xl:grid-cols-[250px_minmax(0,1fr)]">
         <aside className="rounded-xl border border-[#dfe3ee] bg-white">
