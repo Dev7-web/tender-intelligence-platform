@@ -157,3 +157,33 @@ export const downloadTenderUrl = (tenderId: string) => {
   const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
   return `${baseUrl}/tenders/${tenderId}/download`;
 };
+
+const getFilenameFromContentDisposition = (value?: string) => {
+  if (!value) return null;
+  const utfMatch = /filename\*=UTF-8''([^;]+)/i.exec(value);
+  if (utfMatch?.[1]) {
+    try {
+      return decodeURIComponent(utfMatch[1]);
+    } catch {
+      return utfMatch[1];
+    }
+  }
+  const match = /filename="([^"]+)"/i.exec(value) || /filename=([^;]+)/i.exec(value);
+  return match?.[1]?.trim().replace(/^"|"$/g, "") ?? null;
+};
+
+export const downloadTenderFile = async (tenderId: string) => {
+  const response = await api.get(`/tenders/${tenderId}/download`, { responseType: "blob" });
+  const contentType = response.headers?.["content-type"] || "application/pdf";
+  const filename =
+    getFilenameFromContentDisposition(response.headers?.["content-disposition"]) || `tender-${tenderId}.pdf`;
+  const blob = new Blob([response.data], { type: contentType });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+};

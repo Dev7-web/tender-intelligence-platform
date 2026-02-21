@@ -1,7 +1,7 @@
 import { CalendarDays, Download, IndianRupee, MapPin, Share2 } from "lucide-react";
 import { format } from "date-fns";
 
-import { downloadTenderUrl } from "@/services/tenderAgentApi";
+import { downloadTenderFile } from "@/services/tenderAgentApi";
 import { MatchItem } from "@/types/tender-agent";
 
 interface TenderMatchCardProps {
@@ -30,6 +30,14 @@ const TenderMatchCard = ({ item, onOpen, onAction, onShare }: TenderMatchCardPro
   const department = meta.department || scraped.department || "Department";
   const location = meta.location || department || "India";
   const scorePercent = Math.round((item.match?.score || 0) * 100);
+
+  const handleDownload = async () => {
+    try {
+      await downloadTenderFile(tender.id);
+    } catch (error) {
+      console.error("Download failed", error);
+    }
+  };
 
   return (
     <div className="rounded-xl border border-[#d8dce6] bg-white p-4 shadow-sm transition hover:border-[#bfc5d8]">
@@ -94,14 +102,13 @@ const TenderMatchCard = ({ item, onOpen, onAction, onShare }: TenderMatchCardPro
           >
             {item.action === "saved" ? "Saved" : "Save"}
           </button>
-          <a
-            href={downloadTenderUrl(tender.id)}
+          <button
+            type="button"
+            onClick={handleDownload}
             className="rounded-full bg-[#4040E0] px-3 py-1.5 text-xs text-white"
-            target="_blank"
-            rel="noreferrer"
           >
             <Download size={12} className="mr-1 inline" /> Download
-          </a>
+          </button>
         </div>
       </div>
     </div>

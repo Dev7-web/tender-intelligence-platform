@@ -7,7 +7,7 @@ import DiscussWithAI from "@/components/modals/DiscussWithAI";
 import ShareTender from "@/components/modals/ShareTender";
 import { useToastSimple } from "@/components/ui/toaster-simple";
 import { getCompanyId } from "@/lib/auth";
-import { downloadTenderUrl, fetchTenderDetail, updateTenderAction } from "@/services/tenderAgentApi";
+import { downloadTenderFile, fetchTenderDetail, updateTenderAction } from "@/services/tenderAgentApi";
 
 const TenderDetailsPage = () => {
   const { id = "" } = useParams();
@@ -35,6 +35,14 @@ const TenderDetailsPage = () => {
     },
     onError: () => pushToast("Unable to update action", "error"),
   });
+
+  const handleDownload = async () => {
+    try {
+      await downloadTenderFile(id);
+    } catch (error) {
+      pushToast("Unable to download document", "error");
+    }
+  };
 
   const meta = tender?.metadata || {};
   const scraped = tender?.scraped_info || {};
@@ -106,14 +114,13 @@ const TenderDetailsPage = () => {
             >
               Apply
             </button>
-            <a
-              href={downloadTenderUrl(id)}
-              target="_blank"
-              rel="noreferrer"
+            <button
+              type="button"
+              onClick={handleDownload}
               className="rounded-full bg-[#4040E0] px-3 py-1.5 text-xs text-white"
             >
               <Download size={12} className="mr-1 inline" /> Download Documents
-            </a>
+            </button>
           </div>
         </div>
       </div>
