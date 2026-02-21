@@ -133,23 +133,56 @@ const TendersPage = () => {
   const filterRowClass = "border-t border-[#e6e9f1] px-4 py-3";
 
   return (
-    <div>
-      <div className="mb-4 flex items-center gap-2">
-        <h1 className="text-3xl font-semibold text-[#232937] md:text-4xl">Current Active Tenders</h1>
-        <p className="text-sm text-[#7d8599]">{data?.total || 0} results</p>
+    <div className="min-h-screen bg-[#f4f6fb]">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-baseline gap-2">
+          <h1 className="text-[22px] font-semibold text-[#1f2533] md:text-[28px]">Current Active Tenders</h1>
+          <p className="text-xs text-[#8a93a8] md:text-sm">{data?.total || 0} results</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-[#6f768b]">Time Period</span>
+            <select
+              value={timePeriod}
+              onChange={(event) => {
+                setPage(1);
+                setTimePeriod(event.target.value);
+              }}
+              className="h-9 min-w-[150px] rounded-md border border-[#d8dce6] bg-white px-3 text-sm text-[#232937]"
+            >
+              <option value="latest">Latest</option>
+              <option value="7d">7 Days</option>
+              <option value="30d">30 Days</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-[#6f768b]">Sort By</span>
+            <select
+              value={sort}
+              onChange={(event) => {
+                setPage(1);
+                setSort(event.target.value);
+              }}
+              className="h-9 min-w-[170px] rounded-md border border-[#d8dce6] bg-white px-3 text-sm text-[#232937]"
+            >
+              <option value="best_match">Best Match (&gt;80%)</option>
+              <option value="latest">Latest</option>
+            </select>
+          </div>
+        </div>
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[250px_minmax(0,1fr)]">
-        <aside className="rounded-xl border border-[#d8dce6] bg-white">
+        <aside className="rounded-xl border border-[#dfe3ee] bg-white">
           <div className="flex items-center justify-between px-4 py-3">
-            <h2 className="text-xl font-semibold text-[#283043]">Filters</h2>
-            <button onClick={clearAllFilters} className="text-sm text-[#4d55e0]">
+            <h2 className="text-base font-semibold text-[#283043]">Filters</h2>
+            <button onClick={clearAllFilters} className="text-xs text-[#4d55e0]">
               Clear all
             </button>
           </div>
 
           <div className={filterRowClass}>
-            <p className="mb-2 text-sm font-medium text-[#2f374a]">Keywords</p>
+            <p className="mb-2 text-xs font-semibold text-[#2f374a]">Keywords</p>
             <div className="flex gap-2">
               <input
                 value={keywordDraft}
@@ -160,9 +193,9 @@ const TendersPage = () => {
                   }
                 }}
                 placeholder="Add keyword..."
-                className="h-10 min-w-0 flex-1 rounded-md border border-[#d6dbe8] px-3 text-sm"
+                className="h-9 min-w-0 flex-1 rounded-md border border-[#d6dbe8] px-3 text-sm"
               />
-              <button onClick={addKeyword} className="rounded-md bg-[#8e97ff] px-3 text-sm text-white">
+              <button onClick={addKeyword} className="rounded-md bg-[#8e97ff] px-3 text-xs font-medium text-white">
                 Add
               </button>
             </div>
@@ -187,7 +220,7 @@ const TendersPage = () => {
           </div>
 
           <div className={filterRowClass}>
-            <button className="flex w-full items-center justify-between text-sm text-[#2f374a]" onClick={() => toggleSection("state")}>
+            <button className="flex w-full items-center justify-between text-xs text-[#2f374a]" onClick={() => toggleSection("state")}>
               <span>State</span>
               <ChevronDown size={16} className={openSections.state ? "rotate-180" : ""} />
             </button>
@@ -202,7 +235,7 @@ const TendersPage = () => {
           </div>
 
           <div className={filterRowClass}>
-            <button className="flex w-full items-center justify-between text-sm text-[#2f374a]" onClick={() => toggleSection("city")}>
+            <button className="flex w-full items-center justify-between text-xs text-[#2f374a]" onClick={() => toggleSection("city")}>
               <span>City</span>
               <ChevronDown size={16} className={openSections.city ? "rotate-180" : ""} />
             </button>
@@ -217,7 +250,7 @@ const TendersPage = () => {
           </div>
 
           <div className={filterRowClass}>
-            <button className="flex w-full items-center justify-between text-sm text-[#2f374a]" onClick={() => toggleSection("certification")}>
+            <button className="flex w-full items-center justify-between text-xs text-[#2f374a]" onClick={() => toggleSection("certification")}>
               <span>Certification</span>
               <ChevronDown size={16} className={openSections.certification ? "rotate-180" : ""} />
             </button>
@@ -232,26 +265,26 @@ const TendersPage = () => {
           </div>
 
           <div className={filterRowClass}>
-            <button className="flex w-full items-center justify-between text-sm text-[#2f374a]" onClick={() => toggleSection("procurement")}>
+            <button className="flex w-full items-center justify-between text-xs text-[#2f374a]" onClick={() => toggleSection("procurement")}>
               <span>Procurement Type</span>
               <ChevronDown size={16} className={openSections.procurement ? "rotate-180" : ""} />
             </button>
           </div>
           <div className={filterRowClass}>
-            <button className="flex w-full items-center justify-between text-sm text-[#2f374a]" onClick={() => toggleSection("organisation")}>
+            <button className="flex w-full items-center justify-between text-xs text-[#2f374a]" onClick={() => toggleSection("organisation")}>
               <span>Organisation</span>
               <ChevronDown size={16} className={openSections.organisation ? "rotate-180" : ""} />
             </button>
           </div>
           <div className={filterRowClass}>
-            <button className="flex w-full items-center justify-between text-sm text-[#2f374a]" onClick={() => toggleSection("amount")}>
+            <button className="flex w-full items-center justify-between text-xs text-[#2f374a]" onClick={() => toggleSection("amount")}>
               <span>Tender Amount</span>
               <ChevronDown size={16} className={openSections.amount ? "rotate-180" : ""} />
             </button>
           </div>
 
           <div className={filterRowClass}>
-            <button className="flex w-full items-center justify-between text-sm text-[#2f374a]" onClick={() => toggleSection("portal")}>
+            <button className="flex w-full items-center justify-between text-xs text-[#2f374a]" onClick={() => toggleSection("portal")}>
               <span>Portal</span>
               <ChevronDown size={16} className={openSections.portal ? "rotate-180" : ""} />
             </button>
@@ -268,14 +301,14 @@ const TendersPage = () => {
           </div>
 
           <div className={filterRowClass}>
-            <button className="flex w-full items-center justify-between text-sm text-[#2f374a]" onClick={() => toggleSection("language")}>
+            <button className="flex w-full items-center justify-between text-xs text-[#2f374a]" onClick={() => toggleSection("language")}>
               <span>Language</span>
               <ChevronDown size={16} className={openSections.language ? "rotate-180" : ""} />
             </button>
           </div>
 
           <div className={filterRowClass}>
-            <p className="text-sm font-medium text-[#2f374a]">Minimum match shown</p>
+            <p className="text-xs font-semibold text-[#2f374a]">Minimum match shown</p>
             <input
               type="range"
               min={0}
@@ -290,40 +323,6 @@ const TendersPage = () => {
         </aside>
 
         <section className="min-w-0">
-          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-            <div className="flex items-end gap-2">
-              <div>
-                <p className="text-xs text-[#6f768b]">Time Period</p>
-                <select
-                  value={timePeriod}
-                  onChange={(event) => {
-                    setPage(1);
-                    setTimePeriod(event.target.value);
-                  }}
-                  className="h-10 rounded border border-[#d3d7e2] bg-white px-3 text-sm"
-                >
-                  <option value="latest">Latest</option>
-                  <option value="7d">7 Days</option>
-                  <option value="30d">30 Days</option>
-                </select>
-              </div>
-              <div>
-                <p className="text-xs text-[#6f768b]">Sort By</p>
-                <select
-                  value={sort}
-                  onChange={(event) => {
-                    setPage(1);
-                    setSort(event.target.value);
-                  }}
-                  className="h-10 rounded border border-[#d3d7e2] bg-white px-3 text-sm"
-                >
-                  <option value="best_match">Best Match (&gt;80%)</option>
-                  <option value="latest">Latest</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
           <div className="mb-4 flex items-center gap-2">
             <input
               value={searchDraft}
@@ -334,7 +333,7 @@ const TendersPage = () => {
                 }
               }}
               placeholder="Search tender"
-              className="h-11 flex-1 rounded-full border border-[#d5d9e3] bg-white px-4 text-sm"
+              className="h-11 flex-1 rounded-full border border-[#d5d9e3] bg-white px-4 text-sm text-[#232937]"
             />
             <button
               onClick={handleSearch}
