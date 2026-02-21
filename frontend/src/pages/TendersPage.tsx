@@ -26,7 +26,6 @@ const TendersPage = () => {
   const [cityFilter, setCityFilter] = useState("");
   const [certificationFilter, setCertificationFilter] = useState("");
   const [portalFilter, setPortalFilter] = useState("");
-  const [minVisibleScore, setMinVisibleScore] = useState(0);
   const [sort, setSort] = useState("best_match");
   const [page, setPage] = useState(1);
   const [selectedShareTenderId, setSelectedShareTenderId] = useState<string | null>(null);
@@ -80,10 +79,9 @@ const TendersPage = () => {
       if (cityFilter && !location.includes(cityFilter.toLowerCase())) return false;
       if (certificationFilter && !certs.some((value) => value.includes(certificationFilter.toLowerCase()))) return false;
       if (portalFilter && portal !== portalFilter.toLowerCase()) return false;
-      if (minVisibleScore > 0 && score < minVisibleScore / 100) return false;
       return true;
     });
-  }, [data?.items, stateFilter, cityFilter, certificationFilter, portalFilter, minVisibleScore]);
+  }, [data?.items, stateFilter, cityFilter, certificationFilter, portalFilter]);
 
   const actionMutation = useMutation({
     mutationFn: ({ tenderId, action }: { tenderId: string; action: "saved" | "applied" | "discarded" | null }) =>
@@ -140,7 +138,6 @@ const TendersPage = () => {
     setCityFilter("");
     setCertificationFilter("");
     setPortalFilter("");
-    setMinVisibleScore(0);
     setPage(1);
   };
 
@@ -340,19 +337,6 @@ const TendersPage = () => {
             </button>
           </div>
 
-          <div className={filterRowClass}>
-            <p className="text-xs font-semibold text-[#2f374a]">Minimum match shown</p>
-            <input
-              type="range"
-              min={0}
-              max={95}
-              step={5}
-              value={minVisibleScore}
-              onChange={(event) => setMinVisibleScore(Number(event.target.value))}
-              className="mt-2 w-full accent-[#4040E0]"
-            />
-            <p className="mt-1 text-xs text-[#7a8297]">{minVisibleScore}% and above</p>
-          </div>
         </aside>
 
         <section className="min-w-0">
