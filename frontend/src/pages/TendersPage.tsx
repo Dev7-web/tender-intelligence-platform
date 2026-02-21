@@ -142,20 +142,20 @@ const TendersPage = () => {
           <p className="text-xs text-[#8a93a8] md:text-sm">{data?.total || 0} results</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-[#6f768b]">Sort By</span>
-          <div className="flex h-9 min-w-[170px] items-center rounded-md border border-[#d8dce6] bg-[#f2f4f8] pl-1">
+          <span className="text-[11px] font-medium text-[#6f768b]">Sort By</span>
+          <div className="relative h-9 min-w-[170px]">
             <select
               value={sort}
               onChange={(event) => {
                 setPage(1);
                 setSort(event.target.value);
               }}
-              className="h-7 flex-1 appearance-none rounded-[6px] bg-white px-2 text-sm text-[#232937]"
+              className="h-9 w-full appearance-none rounded-md border border-[#d8dce6] bg-[linear-gradient(to_right,#ffffff_0,#ffffff_calc(100%-2.25rem),#f2f4f8_calc(100%-2.25rem),#f2f4f8_100%)] pl-3 pr-9 text-[12px] font-semibold text-[#232937]"
             >
               <option value="best_match">Best Match (&gt;80%)</option>
               <option value="latest">Latest</option>
             </select>
-            <span className="pointer-events-none flex h-full w-9 items-center justify-center border-l border-[#e1e5f0] text-[#7b8293]">
+            <span className="pointer-events-none absolute right-0 top-0 flex h-full w-9 items-center justify-center border-l border-[#e1e5f0] text-[#7b8293]">
               <ChevronDown size={16} />
             </span>
           </div>
