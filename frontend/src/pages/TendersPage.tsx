@@ -1,5 +1,8 @@
 import { useMemo, useState } from "react";
-import { ChevronDown, SendHorizontal, X } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
+
+import searchIcon from "@/assets/tenders/search.svg";
+import sendIcon from "@/assets/tenders/send.svg";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 
@@ -184,17 +187,22 @@ const TendersPage = () => {
           <div className={filterRowClass}>
             <p className="mb-2 text-xs font-semibold text-[#2f374a]">Keywords</p>
             <div className="flex gap-2">
-              <input
-                value={keywordDraft}
-                onChange={(event) => setKeywordDraft(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    addKeyword();
-                  }
-                }}
-                placeholder="Add keyword..."
-                className="h-9 min-w-0 flex-1 rounded-md border border-[#d6dbe8] px-3 text-sm"
-              />
+              <div className="relative flex-1">
+                <span className="pointer-events-none absolute left-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md border border-[#d6dbe8] bg-white">
+                  <img src={searchIcon} alt="" className="h-4 w-4" />
+                </span>
+                <input
+                  value={keywordDraft}
+                  onChange={(event) => setKeywordDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      addKeyword();
+                    }
+                  }}
+                  placeholder="Add keyword..."
+                  className="h-9 w-full rounded-md border border-[#d6dbe8] pl-10 pr-3 text-sm"
+                />
+              </div>
               <button onClick={addKeyword} className="rounded-md bg-[#8e97ff] px-3 text-xs font-medium text-white">
                 Add
               </button>
@@ -335,11 +343,8 @@ const TendersPage = () => {
               placeholder="Search tender"
               className="h-11 flex-1 rounded-full border border-[#d5d9e3] bg-white px-4 text-sm text-[#232937]"
             />
-            <button
-              onClick={handleSearch}
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-[#4040E0] text-white"
-            >
-              <SendHorizontal size={16} />
+            <button onClick={handleSearch} className="flex h-10 w-10 items-center justify-center rounded-full">
+              <img src={sendIcon} alt="" className="h-10 w-10" />
             </button>
           </div>
 

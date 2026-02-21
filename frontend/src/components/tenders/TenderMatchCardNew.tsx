@@ -1,6 +1,12 @@
-import { CalendarDays, Download, IndianRupee, MapPin, Share2 } from "lucide-react";
+import { Download } from "lucide-react";
 import { format } from "date-fns";
 
+import calendarIcon from "@/assets/tenders/calendar-outline.svg";
+import calendarRedIcon from "@/assets/tenders/calendar-red.svg";
+import locationIcon from "@/assets/tenders/location.svg";
+import rupeeIcon from "@/assets/tenders/rupee.svg";
+import saveIcon from "@/assets/tenders/save.svg";
+import shareIcon from "@/assets/tenders/share.svg";
 import { downloadTenderFile } from "@/services/tenderAgentApi";
 import { MatchItem } from "@/types/tender-agent";
 
@@ -50,10 +56,10 @@ const TenderMatchCard = ({ item, onOpen, onAction, onShare }: TenderMatchCardPro
             {title}
           </button>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-[13px] text-[#666e83]">
-            <MapPin size={13} />
+            <img src={locationIcon} alt="" className="h-3.5 w-3.5" />
             <span className="min-w-0 break-words">{location}</span>
             <span>•</span>
-            <CalendarDays size={13} />
+            <img src={calendarIcon} alt="" className="h-3.5 w-3.5" />
             <span>Published {safeDate(scraped.start_date)}</span>
           </div>
           <div className="mt-2 flex flex-wrap gap-2">
@@ -77,10 +83,13 @@ const TenderMatchCard = ({ item, onOpen, onAction, onShare }: TenderMatchCardPro
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[#ebedf4] pt-3">
         <div className="flex items-center gap-4 text-sm text-[#525a70]">
           <span className="inline-flex items-center gap-1 font-medium text-[#159d76]">
-            <IndianRupee size={14} />
+            <img src={rupeeIcon} alt="" className="h-4 w-4" />
             {scraped.bid_value_range || meta.estimated_value || "N/A"}
           </span>
-          <span className="text-[#d75252]">{safeDate(scraped.end_date)}</span>
+          <span className="inline-flex items-center gap-1 text-[#d75252]">
+            <img src={calendarRedIcon} alt="" className="h-4 w-4" />
+            {safeDate(scraped.end_date)}
+          </span>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -94,12 +103,13 @@ const TenderMatchCard = ({ item, onOpen, onAction, onShare }: TenderMatchCardPro
             onClick={() => onShare(tender.id)}
             className="rounded-full border border-[#d5d9e5] px-3 py-1.5 text-xs text-[#30374a]"
           >
-            <Share2 size={12} className="mr-1 inline" /> Share
+            <img src={shareIcon} alt="" className="mr-1 inline h-3 w-3" /> Share
           </button>
           <button
             onClick={() => onAction(tender.id, item.action === "saved" ? null : "saved")}
             className="rounded-full border border-[#d5d9e5] px-3 py-1.5 text-xs text-[#30374a]"
           >
+            <img src={saveIcon} alt="" className="mr-1 inline h-3.5 w-3.5" />
             {item.action === "saved" ? "Saved" : "Save"}
           </button>
           <button
