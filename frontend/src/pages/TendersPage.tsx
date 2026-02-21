@@ -27,7 +27,6 @@ const TendersPage = () => {
   const [certificationFilter, setCertificationFilter] = useState("");
   const [portalFilter, setPortalFilter] = useState("");
   const [minVisibleScore, setMinVisibleScore] = useState(0);
-  const [timePeriod, setTimePeriod] = useState("latest");
   const [sort, setSort] = useState("best_match");
   const [page, setPage] = useState(1);
   const [selectedShareTenderId, setSelectedShareTenderId] = useState<string | null>(null);
@@ -50,13 +49,13 @@ const TendersPage = () => {
   const params = useMemo(
     () => ({
       q: searchQuery || undefined,
-      time_period: timePeriod,
+      time_period: "latest",
       sort,
       min_score: 0.8,
       page,
       limit: 6,
     }),
-    [searchQuery, timePeriod, sort, page]
+    [searchQuery, sort, page]
   );
 
   const { data, isLoading } = useQuery({
@@ -142,35 +141,23 @@ const TendersPage = () => {
           <h1 className="text-[22px] font-semibold text-[#1f2533] md:text-[28px]">Current Active Tenders</h1>
           <p className="text-xs text-[#8a93a8] md:text-sm">{data?.total || 0} results</p>
         </div>
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-[#6f768b]">Time Period</span>
-            <select
-              value={timePeriod}
-              onChange={(event) => {
-                setPage(1);
-                setTimePeriod(event.target.value);
-              }}
-              className="h-9 min-w-[150px] rounded-md border border-[#d8dce6] bg-white px-3 text-sm text-[#232937]"
-            >
-              <option value="latest">Latest</option>
-              <option value="7d">7 Days</option>
-              <option value="30d">30 Days</option>
-            </select>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-[#6f768b]">Sort By</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-[#6f768b]">Sort By</span>
+          <div className="flex h-9 min-w-[170px] items-center rounded-md border border-[#d8dce6] bg-[#f2f4f8] pl-1">
             <select
               value={sort}
               onChange={(event) => {
                 setPage(1);
                 setSort(event.target.value);
               }}
-              className="h-9 min-w-[170px] rounded-md border border-[#d8dce6] bg-white px-3 text-sm text-[#232937]"
+              className="h-7 flex-1 appearance-none rounded-[6px] bg-white px-2 text-sm text-[#232937]"
             >
               <option value="best_match">Best Match (&gt;80%)</option>
               <option value="latest">Latest</option>
             </select>
+            <span className="pointer-events-none flex h-full w-9 items-center justify-center border-l border-[#e1e5f0] text-[#7b8293]">
+              <ChevronDown size={16} />
+            </span>
           </div>
         </div>
       </div>
