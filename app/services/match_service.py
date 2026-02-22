@@ -176,7 +176,14 @@ class MatchService:
 
         sort_key = (sort or "best_match").lower()
         if "latest" in sort_key:
-            filtered.sort(key=lambda item: self._timestamp(item["tender"].get("scraped_at")), reverse=True)
+            filtered.sort(
+                key=lambda item: self._timestamp(
+                    (item["tender"].get("scraped_info") or {}).get("start_date")
+                    or item["tender"].get("scraped_at")
+                    or item["tender"].get("created_at")
+                ),
+                reverse=True,
+            )
         else:
             filtered.sort(
                 key=lambda item: (
