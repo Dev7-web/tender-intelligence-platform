@@ -1,8 +1,15 @@
 import { useMemo, useState } from "react";
-import { ArrowLeft, Download, MapPin, Share2, Sparkles } from "lucide-react";
+import { ArrowLeft, Download, Share2 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 
+import calendarRedIcon from "@/assets/tenders/calendar-red.svg";
+import discardIcon from "@/assets/tenders/discard.svg";
+import locationPurpleIcon from "@/assets/tenders/location-purple.svg";
+import organizationIcon from "@/assets/tenders/organization.svg";
+import rupeeIcon from "@/assets/tenders/rupee.svg";
+import saveIcon from "@/assets/tenders/save.svg";
+import sparkleIcon from "@/assets/tenders/sparkle.svg";
 import DiscussWithAI from "@/components/modals/DiscussWithAI";
 import ShareTender from "@/components/modals/ShareTender";
 import { useToastSimple } from "@/components/ui/toaster-simple";
@@ -63,26 +70,36 @@ const TenderDetailsPage = () => {
               <span className="rounded-full bg-[#4040E0] px-2 py-1 text-white">GeM</span>
               <span className="rounded-full bg-[#eef0ff] px-2 py-1 text-[#4040E0]">Active</span>
               <span className="rounded-full border border-[#dde1eb] px-2 py-1 text-[#6d7386]">Goods</span>
+              {scraped.items && (
+                <span className="rounded-full border border-[#dde1eb] px-2 py-1 text-[#6d7386]">{scraped.items}</span>
+              )}
               <span className="rounded-full border border-[#dde1eb] px-2 py-1 text-[#6d7386]">PRODUCT</span>
             </div>
             <h1 className="text-2xl font-semibold text-[#222835] md:text-4xl">{title}</h1>
           </div>
           <button
             onClick={() => setOpenDiscuss(true)}
-            className="h-11 rounded-full bg-[#4040E0] px-5 text-sm text-white"
+            className="flex h-11 shrink-0 items-center gap-2 rounded-full bg-[#4040E0] px-5 text-sm text-white"
           >
-            <Sparkles size={14} className="mr-1 inline" /> Discuss with AI
+            <img src={sparkleIcon} alt="" className="h-5 w-5" /> Discuss with AI
           </button>
         </div>
 
-        <p className="text-xl font-semibold text-[#212734] md:text-2xl">{meta.department || scraped.department || "Department"}</p>
-        <p className="mt-2 text-sm text-[#5f667a]">
-          <MapPin size={14} className="mr-1 inline" /> {meta.location || "India"}
+        <p className="flex items-center gap-2 text-xl font-semibold text-[#212734] md:text-2xl">
+          <img src={organizationIcon} alt="" className="h-6 w-6" />
+          {meta.department || scraped.department || "Department"}
+        </p>
+        <p className="mt-2 flex items-center gap-1.5 text-sm text-[#5f667a]">
+          <img src={locationPurpleIcon} alt="" className="h-5 w-5" /> {meta.location || "India"}
         </p>
 
         <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-[#475068]">
-          <span>Amount: {amount}</span>
-          <span>Closes: {String(scraped.end_date || "N/A").slice(0, 10)}</span>
+          <span className="flex items-center gap-1.5">
+            <img src={rupeeIcon} alt="" className="h-5 w-5" /> Amount: <strong>{amount}</strong>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <img src={calendarRedIcon} alt="" className="h-5 w-5" /> Closes: <strong>{String(scraped.end_date || "N/A").slice(0, 10)}</strong>
+          </span>
           <span className="rounded bg-[#daf4eb] px-2 py-1 text-xs text-[#16835e]">12d left</span>
           <span className="rounded bg-[#fdeecf] px-2 py-1 text-xs text-[#c98300]">4d left</span>
           <span className="rounded bg-[#fddcdb] px-2 py-1 text-xs text-[#d35353]">1d left</span>
@@ -92,9 +109,9 @@ const TenderDetailsPage = () => {
           <div className="flex flex-wrap justify-end gap-2">
             <button
               onClick={() => actionMutation.mutate("discarded")}
-              className="rounded-full border border-[#ef8f93] px-3 py-1.5 text-xs text-[#dd5056]"
+              className="flex items-center gap-1.5 rounded-full border border-[#ef8f93] px-3 py-1.5 text-xs text-[#dd5056]"
             >
-              Discard tender
+              <img src={discardIcon} alt="" className="h-4 w-4" /> Discard tender
             </button>
             <button
               onClick={() => setOpenShare(true)}
@@ -104,9 +121,9 @@ const TenderDetailsPage = () => {
             </button>
             <button
               onClick={() => actionMutation.mutate("saved")}
-              className="rounded-full border border-[#d5d9e5] px-3 py-1.5 text-xs text-[#30374a]"
+              className="flex items-center gap-1.5 rounded-full border border-[#d5d9e5] px-3 py-1.5 text-xs text-[#30374a]"
             >
-              Save
+              <img src={saveIcon} alt="" className="h-4 w-4" /> Save
             </button>
             <button
               onClick={() => actionMutation.mutate("applied")}
