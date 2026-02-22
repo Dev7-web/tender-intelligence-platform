@@ -93,8 +93,6 @@ class EmailService:
             "",
             "Summary:",
             tender.get("summary") or "N/A",
-            "",
-            f"Open in app: {settings.FRONTEND_BASE_URL}/tenders/{tender.get('id')}",
         ]
         if note:
             lines.extend(["", "Note:", note])
