@@ -26,9 +26,13 @@ const TendersPage = () => {
   const [cityFilter, setCityFilter] = useState("");
   const [certificationFilter, setCertificationFilter] = useState("");
   const [portalFilter, setPortalFilter] = useState("");
+  const [procurementFilter, setProcurementFilter] = useState("");
+  const [organisationFilter, setOrganisationFilter] = useState("");
+  const [amountFilter, setAmountFilter] = useState("");
   const [debouncedState, setDebouncedState] = useState("");
   const [debouncedCity, setDebouncedCity] = useState("");
   const [debouncedCert, setDebouncedCert] = useState("");
+  const [debouncedOrg, setDebouncedOrg] = useState("");
   const [sort, setSort] = useState("best_match");
   const [page, setPage] = useState(1);
   const [selectedShareTenderId, setSelectedShareTenderId] = useState<string | null>(null);
@@ -42,7 +46,6 @@ const TendersPage = () => {
     organisation: false,
     amount: false,
     portal: true,
-    language: false,
   });
 
   useEffect(() => {
@@ -50,10 +53,11 @@ const TendersPage = () => {
       setDebouncedState(stateFilter);
       setDebouncedCity(cityFilter);
       setDebouncedCert(certificationFilter);
+      setDebouncedOrg(organisationFilter);
       setPage(1);
     }, 400);
     return () => clearTimeout(timer);
-  }, [stateFilter, cityFilter, certificationFilter]);
+  }, [stateFilter, cityFilter, certificationFilter, organisationFilter]);
 
   const searchQuery = useMemo(() => {
     const parts = [search.trim(), ...keywords].map((item) => item.trim()).filter(Boolean);
@@ -72,8 +76,11 @@ const TendersPage = () => {
       city: debouncedCity || undefined,
       certification: debouncedCert || undefined,
       portal: portalFilter || undefined,
+      procurement: procurementFilter || undefined,
+      organisation: debouncedOrg || undefined,
+      amount_range: amountFilter || undefined,
     }),
-    [searchQuery, sort, page, debouncedState, debouncedCity, debouncedCert, portalFilter]
+    [searchQuery, sort, page, debouncedState, debouncedCity, debouncedCert, portalFilter, procurementFilter, debouncedOrg, amountFilter]
   );
 
   const { data, isLoading } = useQuery({
@@ -139,9 +146,13 @@ const TendersPage = () => {
     setCityFilter("");
     setCertificationFilter("");
     setPortalFilter("");
+    setProcurementFilter("");
+    setOrganisationFilter("");
+    setAmountFilter("");
     setDebouncedState("");
     setDebouncedCity("");
     setDebouncedCert("");
+    setDebouncedOrg("");
     setPage(1);
   };
 
@@ -303,18 +314,54 @@ const TendersPage = () => {
               <span>Procurement Type</span>
               <ChevronDown size={16} className={openSections.procurement ? "rotate-180" : ""} />
             </button>
+            {openSections.procurement ? (
+              <select
+                value={procurementFilter}
+                onChange={(event) => { setProcurementFilter(event.target.value); setPage(1); }}
+                className="mt-2 h-9 w-full rounded-md border border-[#d6dbe8] px-2 text-sm"
+              >
+                <option value="">All</option>
+                <option value="open">Open Bid</option>
+                <option value="limited">Limited Bid</option>
+                <option value="single">Single Bid</option>
+              </select>
+            ) : null}
           </div>
+
           <div className={filterRowClass}>
             <button className="flex w-full items-center justify-between text-xs text-[#2f374a]" onClick={() => toggleSection("organisation")}>
               <span>Organisation</span>
               <ChevronDown size={16} className={openSections.organisation ? "rotate-180" : ""} />
             </button>
+            {openSections.organisation ? (
+              <input
+                value={organisationFilter}
+                onChange={(event) => setOrganisationFilter(event.target.value)}
+                placeholder="e.g. Ministry of Defence"
+                className="mt-2 h-9 w-full rounded-md border border-[#d6dbe8] px-2 text-sm"
+              />
+            ) : null}
           </div>
+
           <div className={filterRowClass}>
             <button className="flex w-full items-center justify-between text-xs text-[#2f374a]" onClick={() => toggleSection("amount")}>
               <span>Tender Amount</span>
               <ChevronDown size={16} className={openSections.amount ? "rotate-180" : ""} />
             </button>
+            {openSections.amount ? (
+              <select
+                value={amountFilter}
+                onChange={(event) => { setAmountFilter(event.target.value); setPage(1); }}
+                className="mt-2 h-9 w-full rounded-md border border-[#d6dbe8] px-2 text-sm"
+              >
+                <option value="">All</option>
+                <option value="under_1L">Under 1 Lakh</option>
+                <option value="1L_10L">1 - 10 Lakhs</option>
+                <option value="10L_50L">10 - 50 Lakhs</option>
+                <option value="50L_1Cr">50 Lakhs - 1 Crore</option>
+                <option value="above_1Cr">Above 1 Crore</option>
+              </select>
+            ) : null}
           </div>
 
           <div className={filterRowClass}>
@@ -332,13 +379,6 @@ const TendersPage = () => {
                 <option value="gem">GeM</option>
               </select>
             ) : null}
-          </div>
-
-          <div className={filterRowClass}>
-            <button className="flex w-full items-center justify-between text-xs text-[#2f374a]" onClick={() => toggleSection("language")}>
-              <span>Language</span>
-              <ChevronDown size={16} className={openSections.language ? "rotate-180" : ""} />
-            </button>
           </div>
 
         </aside>

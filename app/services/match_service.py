@@ -69,6 +69,41 @@ SEARCH_FIELDS = [
     "bid_id",
 ]
 
+# Amount range boundaries in INR
+AMOUNT_RANGES: Dict[str, Tuple[float, float]] = {
+    "under_1L": (0, 1_00_000),
+    "1L_10L": (1_00_000, 10_00_000),
+    "10L_50L": (10_00_000, 50_00_000),
+    "50L_1Cr": (50_00_000, 1_00_00_000),
+    "above_1Cr": (1_00_00_000, float("inf")),
+}
+
+
+def _parse_amount_inr(text: str) -> Optional[float]:
+    """Try to extract a numeric INR value from a free-form amount string."""
+    if not text:
+        return None
+    cleaned = text.lower().replace(",", "").replace("₹", "").replace("rs.", "").replace("rs", "").replace("inr", "").strip()
+
+    # Match patterns like "5 crore", "10 lakh", "50000"
+    match = re.search(r"([\d.]+)\s*(crore|cr|lakh|lac|l|k)?\b", cleaned)
+    if not match:
+        return None
+
+    try:
+        number = float(match.group(1))
+    except ValueError:
+        return None
+
+    unit = (match.group(2) or "").strip()
+    if unit in ("crore", "cr"):
+        return number * 1_00_00_000
+    if unit in ("lakh", "lac", "l"):
+        return number * 1_00_000
+    if unit == "k":
+        return number * 1_000
+    return number
+
 
 class MatchService:
     def __init__(self, db: AsyncIOMotorDatabase) -> None:
@@ -92,6 +127,9 @@ class MatchService:
         city: Optional[str] = None,
         certification: Optional[str] = None,
         portal: Optional[str] = None,
+        procurement: Optional[str] = None,
+        organisation: Optional[str] = None,
+        amount_range: Optional[str] = None,
     ) -> Dict[str, Any]:
         profile = await self.company_repo.get_by_id(company_id)
         if not profile or profile.get("owner_user_id") != owner_user_id:
@@ -137,7 +175,42 @@ class MatchService:
         if portal:
             candidate_filter["portal"] = {"$regex": portal, "$options": "i"}
 
+        if procurement:
+            proc_regex = {"$regex": re.escape(procurement), "$options": "i"}
+            candidate_filter.setdefault("$and", []).append(
+                {"$or": [
+                    {"scraped_info.bid_type": proc_regex},
+                    {"metadata.title": proc_regex},
+                    {"metadata.summary": proc_regex},
+                ]}
+            )
+
+        if organisation:
+            org_regex = {"$regex": re.escape(organisation), "$options": "i"}
+            candidate_filter.setdefault("$and", []).append(
+                {"$or": [
+                    {"scraped_info.department": org_regex},
+                    {"metadata.department": org_regex},
+                ]}
+            )
+
         candidates = await self.tender_repo.list(skip=0, limit=1000, filters=candidate_filter)
+
+        # Amount range filtering (done in Python because values are free-form strings)
+        if amount_range and amount_range in AMOUNT_RANGES:
+            min_amt, max_amt = AMOUNT_RANGES[amount_range]
+            filtered_candidates = []
+            for tender in candidates:
+                meta = tender.get("metadata") or {}
+                scraped = tender.get("scraped_info") or {}
+                amount = (
+                    _parse_amount_inr(str(meta.get("estimated_value") or ""))
+                    or _parse_amount_inr(str(scraped.get("bid_value_range") or ""))
+                )
+                if amount is not None and min_amt <= amount < max_amt:
+                    filtered_candidates.append(tender)
+            candidates = filtered_candidates
+
         profile_embedding = self._profile_embedding(profile)
         profile_meta = profile.get("metadata") or {}
         profile_text = self._build_profile_text(profile)

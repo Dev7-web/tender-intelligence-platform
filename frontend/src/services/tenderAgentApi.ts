@@ -107,6 +107,9 @@ export const fetchCompanyMatches = async (
     city?: string;
     certification?: string;
     portal?: string;
+    procurement?: string;
+    organisation?: string;
+    amount_range?: string;
   }
 ) => {
   const { data } = await api.get<{ items: MatchItem[]; page: number; limit: number; total: number }>(
