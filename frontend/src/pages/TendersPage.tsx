@@ -213,7 +213,7 @@ const TendersPage = () => {
         </div>
 
       <div className="grid gap-5 xl:grid-cols-[250px_minmax(0,1fr)]">
-        <aside className="rounded-xl border border-[#dfe3ee] bg-white">
+        <aside className="self-start rounded-xl border border-[#dfe3ee] bg-white">
           <div className="flex items-center justify-between px-4 py-3">
             <h2 className="text-base font-semibold text-[#283043]">Filters</h2>
             <button onClick={clearAllFilters} className="text-xs text-[#4d55e0]">

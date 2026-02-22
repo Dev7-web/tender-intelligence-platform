@@ -19,3 +19,5 @@ frontend/dist/
 # Local data
 /data/pdfs/
 /data/logs/
+/screenshot
+/svg
