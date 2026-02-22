@@ -4,7 +4,11 @@ export interface CompanyProfile {
   name: string;
   company_url: string;
   experience_years: number;
+  turnover?: string;
+  description?: string;
   interest_tags: string[];
+  interested_states?: string[];
+  tender_topics?: string[];
   website_scrape?: {
     status: string;
     pages: string[];

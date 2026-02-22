@@ -23,6 +23,17 @@ class CreateCompanyRequest(BaseModel):
     experience_years: int = Field(ge=0, le=100)
 
 
+class UpdateCompanyRequest(BaseModel):
+    name: Optional[str] = None
+    company_url: Optional[str] = None
+    experience_years: Optional[int] = Field(default=None, ge=0, le=100)
+    turnover: Optional[str] = None
+    description: Optional[str] = None
+    interest_tags: Optional[List[str]] = None
+    interested_states: Optional[List[str]] = None
+    tender_topics: Optional[List[str]] = None
+
+
 class InterestsRequest(BaseModel):
     interest_tags: List[str] = Field(default_factory=list)
 
@@ -153,6 +164,25 @@ async def get_company_profile(
     if not profile:
         raise HTTPException(status_code=404, detail="Company profile not found")
     return profile
+
+
+@router.patch("/{company_id}", response_model=Dict[str, Any])
+async def update_company_profile(
+    company_id: str,
+    payload: UpdateCompanyRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    service = CompanyService(db)
+    try:
+        updated = await service.update_company(
+            company_id=company_id,
+            owner_user_id=current_user["id"],
+            updates=payload.model_dump(exclude_none=True),
+        )
+        return updated
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/{company_id}/search-history", response_model=List[Dict[str, Any]])

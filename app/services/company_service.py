@@ -272,6 +272,44 @@ class CompanyService:
         profile["interest_tags"] = cleaned
         return self._serialize(profile)
 
+    async def update_company(self, company_id: str, owner_user_id: str, updates: Dict[str, Any]) -> Dict[str, Any]:
+        profile = await self._get_owned_profile(company_id, owner_user_id)
+        if not profile:
+            raise ValueError("Company profile not found")
+
+        allowed_fields = {
+            "name", "company_url", "experience_years", "turnover",
+            "description", "interest_tags", "interested_states", "tender_topics",
+        }
+        patch: Dict[str, Any] = {}
+        for key, value in updates.items():
+            if key not in allowed_fields:
+                continue
+            if key == "name" and isinstance(value, str):
+                if not value.strip():
+                    raise ValueError("Company name cannot be empty")
+                patch[key] = value.strip()
+            elif key == "company_url" and isinstance(value, str):
+                if not value.strip():
+                    raise ValueError("Company URL cannot be empty")
+                normalized = value.strip() if "://" in value else f"https://{value.strip()}"
+                parsed = urlparse(normalized)
+                if not parsed.netloc:
+                    raise ValueError("Company URL is invalid")
+                patch[key] = normalized
+            elif key in ("interest_tags", "interested_states", "tender_topics") and isinstance(value, list):
+                patch[key] = [tag.strip() for tag in value if isinstance(tag, str) and tag.strip()]
+            else:
+                patch[key] = value
+
+        if not patch:
+            return self._serialize(profile)
+
+        patch["updated_at"] = utcnow()
+        await self.repo.update(company_id, patch)
+        updated = await self._get_owned_profile(company_id, owner_user_id)
+        return self._serialize(updated or profile)
+
     async def start_processing(self, company_id: str, owner_user_id: str) -> Dict[str, Any]:
         profile = await self._get_owned_profile(company_id, owner_user_id)
         if not profile:

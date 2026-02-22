@@ -75,6 +75,14 @@ export const fetchCompanyProfile = async (companyId: string) => {
   return data;
 };
 
+export const updateCompanyProfile = async (
+  companyId: string,
+  updates: Partial<Pick<CompanyProfile, "name" | "company_url" | "experience_years" | "turnover" | "description" | "interest_tags" | "interested_states" | "tender_topics">>
+) => {
+  const { data } = await api.patch<CompanyProfile>(`/companies/${companyId}`, updates);
+  return data;
+};
+
 export const fetchDashboardStats = async (companyId?: string, overviewRange = "7d") => {
   const { data } = await api.get<DashboardStats>("/dashboard/stats", {
     params: { company_id: companyId, overview_range: overviewRange },
