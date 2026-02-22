@@ -103,6 +103,10 @@ export const fetchCompanyMatches = async (
     min_score?: number;
     page?: number;
     limit?: number;
+    state?: string;
+    city?: string;
+    certification?: string;
+    portal?: string;
   }
 ) => {
   const { data } = await api.get<{ items: MatchItem[]; page: number; limit: number; total: number }>(

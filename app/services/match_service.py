@@ -58,6 +58,18 @@ STOP_WORDS = {
 }
 
 
+SEARCH_FIELDS = [
+    "metadata.title",
+    "metadata.summary",
+    "scraped_info.department",
+    "metadata.department",
+    "metadata.location",
+    "metadata.domains",
+    "metadata.required_technologies",
+    "bid_id",
+]
+
+
 class MatchService:
     def __init__(self, db: AsyncIOMotorDatabase) -> None:
         self.db = db
@@ -76,6 +88,10 @@ class MatchService:
         min_score: float,
         page: int,
         limit: int,
+        state: Optional[str] = None,
+        city: Optional[str] = None,
+        certification: Optional[str] = None,
+        portal: Optional[str] = None,
     ) -> Dict[str, Any]:
         profile = await self.company_repo.get_by_id(company_id)
         if not profile or profile.get("owner_user_id") != owner_user_id:
@@ -95,17 +111,31 @@ class MatchService:
             candidate_filter["scraped_at"] = {"$gte": now - timedelta(days=30)}
 
         if q:
-            regex = {"$regex": q, "$options": "i"}
-            candidate_filter["$or"] = [
-                {"metadata.title": regex},
-                {"metadata.summary": regex},
-                {"scraped_info.department": regex},
-                {"metadata.department": regex},
-                {"metadata.location": regex},
-                {"metadata.domains": regex},
-                {"metadata.required_technologies": regex},
-                {"bid_id": regex},
-            ]
+            words = [w.strip() for w in q.split() if w.strip()]
+            word_conditions = []
+            for word in words:
+                escaped = re.escape(word)
+                regex = {"$regex": escaped, "$options": "i"}
+                word_conditions.append(
+                    {"$or": [{field: regex} for field in SEARCH_FIELDS]}
+                )
+            if word_conditions:
+                candidate_filter.setdefault("$and", []).extend(word_conditions)
+
+        if state:
+            candidate_filter["metadata.location"] = {"$regex": state, "$options": "i"}
+
+        if city:
+            if "metadata.location" in candidate_filter:
+                candidate_filter["metadata.location"]["$regex"] = f"(?=.*{re.escape(state)})(?=.*{re.escape(city)})"
+            else:
+                candidate_filter["metadata.location"] = {"$regex": city, "$options": "i"}
+
+        if certification:
+            candidate_filter["metadata.required_certifications"] = {"$regex": certification, "$options": "i"}
+
+        if portal:
+            candidate_filter["portal"] = {"$regex": portal, "$options": "i"}
 
         candidates = await self.tender_repo.list(skip=0, limit=1000, filters=candidate_filter)
         profile_embedding = self._profile_embedding(profile)

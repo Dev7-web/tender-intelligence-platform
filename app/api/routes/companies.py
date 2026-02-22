@@ -178,6 +178,10 @@ async def get_company_matches(
     min_score: float = 0.8,
     page: int = 1,
     limit: int = 10,
+    state: Optional[str] = None,
+    city: Optional[str] = None,
+    certification: Optional[str] = None,
+    portal: Optional[str] = None,
     db: AsyncIOMotorDatabase = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
@@ -192,6 +196,10 @@ async def get_company_matches(
             min_score=min_score,
             page=page,
             limit=limit,
+            state=state,
+            city=city,
+            certification=certification,
+            portal=portal,
         )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

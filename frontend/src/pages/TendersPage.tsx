@@ -26,6 +26,9 @@ const TendersPage = () => {
   const [cityFilter, setCityFilter] = useState("");
   const [certificationFilter, setCertificationFilter] = useState("");
   const [portalFilter, setPortalFilter] = useState("");
+  const [debouncedState, setDebouncedState] = useState("");
+  const [debouncedCity, setDebouncedCity] = useState("");
+  const [debouncedCert, setDebouncedCert] = useState("");
   const [sort, setSort] = useState("best_match");
   const [page, setPage] = useState(1);
   const [selectedShareTenderId, setSelectedShareTenderId] = useState<string | null>(null);
@@ -42,6 +45,16 @@ const TendersPage = () => {
     language: false,
   });
 
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedState(stateFilter);
+      setDebouncedCity(cityFilter);
+      setDebouncedCert(certificationFilter);
+      setPage(1);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [stateFilter, cityFilter, certificationFilter]);
+
   const searchQuery = useMemo(() => {
     const parts = [search.trim(), ...keywords].map((item) => item.trim()).filter(Boolean);
     return parts.join(" ");
@@ -55,8 +68,12 @@ const TendersPage = () => {
       min_score: 0.8,
       page,
       limit: 6,
+      state: debouncedState || undefined,
+      city: debouncedCity || undefined,
+      certification: debouncedCert || undefined,
+      portal: portalFilter || undefined,
     }),
-    [searchQuery, sort, page]
+    [searchQuery, sort, page, debouncedState, debouncedCity, debouncedCert, portalFilter]
   );
 
   const { data, isLoading } = useQuery({
@@ -65,23 +82,7 @@ const TendersPage = () => {
     enabled: Boolean(companyId),
   });
 
-  const items = useMemo(() => {
-    const all = data?.items || [];
-    return all.filter((item) => {
-      const meta = item.tender.metadata || {};
-      const location = String(meta.location || "").toLowerCase();
-      const domains = (meta.domains || []).map((value) => String(value).toLowerCase());
-      const certs = (meta.required_certifications || []).map((value) => String(value).toLowerCase());
-      const portal = String(item.tender.portal || "gem").toLowerCase();
-      const score = item.match?.score || 0;
-
-      if (stateFilter && !location.includes(stateFilter.toLowerCase())) return false;
-      if (cityFilter && !location.includes(cityFilter.toLowerCase())) return false;
-      if (certificationFilter && !certs.some((value) => value.includes(certificationFilter.toLowerCase()))) return false;
-      if (portalFilter && portal !== portalFilter.toLowerCase()) return false;
-      return true;
-    });
-  }, [data?.items, stateFilter, cityFilter, certificationFilter, portalFilter]);
+  const items = data?.items || [];
 
   const actionMutation = useMutation({
     mutationFn: ({ tenderId, action }: { tenderId: string; action: "saved" | "applied" | "discarded" | null }) =>
@@ -138,6 +139,9 @@ const TendersPage = () => {
     setCityFilter("");
     setCertificationFilter("");
     setPortalFilter("");
+    setDebouncedState("");
+    setDebouncedCity("");
+    setDebouncedCert("");
     setPage(1);
   };
 
@@ -321,7 +325,7 @@ const TendersPage = () => {
             {openSections.portal ? (
               <select
                 value={portalFilter}
-                onChange={(event) => setPortalFilter(event.target.value)}
+                onChange={(event) => { setPortalFilter(event.target.value); setPage(1); }}
                 className="mt-2 h-9 w-full rounded-md border border-[#d6dbe8] px-2 text-sm"
               >
                 <option value="">All</option>
@@ -343,7 +347,14 @@ const TendersPage = () => {
           <div className="mb-4 flex items-center gap-2">
             <input
               value={searchDraft}
-              onChange={(event) => setSearchDraft(event.target.value)}
+              onChange={(event) => {
+                const value = event.target.value;
+                setSearchDraft(value);
+                if (!value.trim()) {
+                  setSearch("");
+                  setPage(1);
+                }
+              }}
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
                   handleSearch();
