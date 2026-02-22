@@ -101,6 +101,48 @@ const formatBytes = (bytes?: number) => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} mb`;
 };
 
+/* ── field component (outside to preserve focus) ── */
+const Field = ({ label, value, onChange, placeholder, textarea, disabled }: {
+  label: string; value: string; onChange: (v: string) => void; placeholder?: string; textarea?: boolean; disabled?: boolean;
+}) => (
+  <div>
+    <label className="mb-1.5 block text-sm font-medium text-[#232937]">{label}</label>
+    {textarea ? (
+      <textarea
+        disabled={disabled}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        rows={4}
+        className="w-full rounded-lg border border-[#d6dae3] bg-white px-4 py-3 text-sm text-[#232937] outline-none focus:border-[#4040E0] disabled:bg-[#f9fafb] disabled:text-[#6b7280]"
+      />
+    ) : (
+      <input
+        disabled={disabled}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="h-12 w-full rounded-lg border border-[#d6dae3] bg-white px-4 text-sm text-[#232937] outline-none focus:border-[#4040E0] disabled:bg-[#f9fafb] disabled:text-[#6b7280]"
+      />
+    )}
+  </div>
+);
+
+/* ── tag section component (outside to preserve focus) ── */
+const TagSection = ({ label, items, setItems, editing }: {
+  label: string; items: string[]; setItems: (v: string[]) => void; editing: boolean;
+}) => (
+  <div>
+    <p className="mb-2 text-sm font-semibold text-[#232937]">{label}</p>
+    <div className="flex flex-wrap items-center gap-2">
+      {items.map((tag) => (
+        <TagChip key={tag} label={tag} editing={editing} onRemove={() => setItems(items.filter((t) => t !== tag))} />
+      ))}
+      {editing && <AddTagButton onAdd={(v) => { if (!items.includes(v)) setItems([...items, v]); }} />}
+    </div>
+  </div>
+);
+
 /* ════════════════════════════════════════════════ */
 /*  MAIN COMPONENT                                  */
 /* ════════════════════════════════════════════════ */
@@ -231,46 +273,6 @@ const OrganizationPage = () => {
 
   const { getRootProps, getInputProps, open } = useDropzone({ onDrop: uploadFiles, noClick: true, multiple: true });
 
-  /* ── field component ───────────────────────── */
-  const Field = ({ label, value, onChange, placeholder, textarea }: {
-    label: string; value: string; onChange: (v: string) => void; placeholder?: string; textarea?: boolean;
-  }) => (
-    <div>
-      <label className="mb-1.5 block text-sm font-medium text-[#232937]">{label}</label>
-      {textarea ? (
-        <textarea
-          disabled={!editing}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          rows={4}
-          className="w-full rounded-lg border border-[#d6dae3] bg-white px-4 py-3 text-sm text-[#232937] outline-none focus:border-[#4040E0] disabled:bg-[#f9fafb] disabled:text-[#6b7280]"
-        />
-      ) : (
-        <input
-          disabled={!editing}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          className="h-12 w-full rounded-lg border border-[#d6dae3] bg-white px-4 text-sm text-[#232937] outline-none focus:border-[#4040E0] disabled:bg-[#f9fafb] disabled:text-[#6b7280]"
-        />
-      )}
-    </div>
-  );
-
-  /* ── tag section component ─────────────────── */
-  const TagSection = ({ label, items, setItems }: { label: string; items: string[]; setItems: (v: string[]) => void }) => (
-    <div>
-      <p className="mb-2 text-sm font-semibold text-[#232937]">{label}</p>
-      <div className="flex flex-wrap items-center gap-2">
-        {items.map((tag) => (
-          <TagChip key={tag} label={tag} editing={editing} onRemove={() => setItems(items.filter((t) => t !== tag))} />
-        ))}
-        {editing && <AddTagButton onAdd={(v) => { if (!items.includes(v)) setItems([...items, v]); }} />}
-      </div>
-    </div>
-  );
-
   /* ════════════════════════════════════════════ */
   /*  RENDER                                      */
   /* ════════════════════════════════════════════ */
@@ -342,15 +344,15 @@ const OrganizationPage = () => {
 
           {/* right form fields */}
           <div className="space-y-5">
-            <Field label="Company Name" value={name} onChange={setName} placeholder="Enter name" />
-            <Field label="Company URL" value={url} onChange={setUrl} placeholder="www.example.com" />
-            <Field label="Experience" value={experience} onChange={setExperience} placeholder="5 years" />
-            <Field label="Turnover" value={turnover} onChange={setTurnover} placeholder="$250,000" />
-            <Field label="Description" value={description} onChange={setDescription} placeholder="Description about Company..." textarea />
+            <Field label="Company Name" value={name} onChange={setName} placeholder="Enter name" disabled={!editing} />
+            <Field label="Company URL" value={url} onChange={setUrl} placeholder="www.example.com" disabled={!editing} />
+            <Field label="Experience" value={experience} onChange={setExperience} placeholder="5 years" disabled={!editing} />
+            <Field label="Turnover" value={turnover} onChange={setTurnover} placeholder="$250,000" disabled={!editing} />
+            <Field label="Description" value={description} onChange={setDescription} placeholder="Description about Company..." textarea disabled={!editing} />
 
-            <TagSection label="Tags" items={tags} setItems={setTags} />
-            <TagSection label="Interested States" items={interestedStates} setItems={setInterestedStates} />
-            <TagSection label="Tender Topics" items={tenderTopics} setItems={setTenderTopics} />
+            <TagSection label="Tags" items={tags} setItems={setTags} editing={editing} />
+            <TagSection label="Interested States" items={interestedStates} setItems={setInterestedStates} editing={editing} />
+            <TagSection label="Tender Topics" items={tenderTopics} setItems={setTenderTopics} editing={editing} />
           </div>
         </div>
       </div>
