@@ -4,10 +4,13 @@ FastAPI application entry point.
 
 from __future__ import annotations
 
+import os
+
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.exceptions import RequestValidationError
+from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import auth, companies, search, tenders
 from app.api.routes import dashboard, jobs, websocket
@@ -112,3 +115,19 @@ async def on_shutdown() -> None:
 @app.get("/health")
 async def health_check():
     return {"status": "ok"}
+
+
+# ── Serve frontend static build ──────────────────
+FRONTEND_DIST = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "dist")
+
+if os.path.isdir(FRONTEND_DIST):
+    # Serve static assets (JS, CSS, images, etc.)
+    app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_DIST, "assets")), name="frontend-assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        """Catch-all: serve index.html for any non-API route (SPA routing)."""
+        file_path = os.path.join(FRONTEND_DIST, full_path)
+        if full_path and os.path.isfile(file_path):
+            return FileResponse(file_path)
+        return FileResponse(os.path.join(FRONTEND_DIST, "index.html"))

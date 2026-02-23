@@ -220,11 +220,27 @@ class CompanyService:
             },
         )
 
+        # Auto-trigger profile rebuild if any genuinely new files were added
+        new_files_added = any(
+            item.get("status") not in ("already_exists",) for item in uploaded_items
+        )
+        reprocessing = False
+        if new_files_added:
+            reprocessing = True
+            asyncio.create_task(
+                self._process_company_profile(
+                    company_id=company_id,
+                    owner_user_id=owner_user_id,
+                    job_id=str(uuid.uuid4()),
+                )
+            )
+
         return {
             "company_id": company_id,
             "files": uploaded_items,
             "total_files": len(existing_files),
             "uploaded": len(uploaded_items),
+            "reprocessing": reprocessing,
         }
 
     async def remove_document(self, company_id: str, owner_user_id: str, file_hash: str) -> bool:
@@ -305,10 +321,60 @@ class CompanyService:
         if not patch:
             return self._serialize(profile)
 
+        # Detect if URL changed
+        old_url = (profile.get("company_url") or "").strip()
+        new_url = (patch.get("company_url") or "").strip()
+        url_changed = "company_url" in patch and new_url != old_url
+
         patch["updated_at"] = utcnow()
         await self.repo.update(company_id, patch)
+
+        # Auto-trigger scrape + reprocess if URL changed, otherwise just reprocess
+        rescraping = False
+        reprocessing = False
+        if url_changed:
+            rescraping = True
+            reprocessing = True
+            asyncio.create_task(self._scrape_and_process(company_id, owner_user_id))
+        else:
+            reprocessing = True
+            asyncio.create_task(
+                self._process_company_profile(
+                    company_id=company_id,
+                    owner_user_id=owner_user_id,
+                    job_id=str(uuid.uuid4()),
+                )
+            )
+
         updated = await self._get_owned_profile(company_id, owner_user_id)
-        return self._serialize(updated or profile)
+        result = self._serialize(updated or profile)
+        result["rescraping"] = rescraping
+        result["reprocessing"] = reprocessing
+        return result
+
+    async def _scrape_and_process(self, company_id: str, owner_user_id: str) -> None:
+        """Background task: scrape the company website, then rebuild the profile."""
+        job_id = str(uuid.uuid4())
+        try:
+            await self._broadcast_progress(
+                job="PROCESS_COMPANY", job_id=job_id, status="started",
+                current=0, total=4, message="Scraping company website...",
+            )
+            await self.scrape_website(company_id, owner_user_id)
+            await self._broadcast_progress(
+                job="PROCESS_COMPANY", job_id=job_id, status="progress",
+                current=1, total=4, message="Website scraped, rebuilding profile...",
+            )
+        except Exception as exc:
+            logger.info("company.scrape_failed_during_update", company_id=company_id, error=str(exc))
+            await self._broadcast_progress(
+                job="PROCESS_COMPANY", job_id=job_id, status="progress",
+                current=1, total=4, message=f"Website scrape failed: {exc}. Continuing with profile rebuild...",
+            )
+
+        await self._process_company_profile(
+            company_id=company_id, owner_user_id=owner_user_id, job_id=job_id,
+        )
 
     async def start_processing(self, company_id: str, owner_user_id: str) -> Dict[str, Any]:
         profile = await self._get_owned_profile(company_id, owner_user_id)
@@ -426,9 +492,25 @@ class CompanyService:
         chunks.append(f"Company URL: {profile.get('company_url') or ''}")
         chunks.append(f"Experience Years: {profile.get('experience_years') or ''}")
 
+        turnover = (profile.get("turnover") or "").strip()
+        if turnover:
+            chunks.append(f"Turnover: {turnover}")
+
+        description = (profile.get("description") or "").strip()
+        if description:
+            chunks.append(f"Company Description: {description}")
+
         interest_tags = profile.get("interest_tags") or []
         if interest_tags:
             chunks.append(f"Interest Tags: {', '.join(interest_tags)}")
+
+        interested_states = profile.get("interested_states") or []
+        if interested_states:
+            chunks.append(f"Interested States: {', '.join(interested_states)}")
+
+        tender_topics = profile.get("tender_topics") or []
+        if tender_topics:
+            chunks.append(f"Tender Topics: {', '.join(tender_topics)}")
 
         website_text = ((profile.get("website_scrape") or {}).get("extracted_text") or "").strip()
         if website_text:

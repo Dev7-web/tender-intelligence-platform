@@ -197,10 +197,16 @@ const OrganizationPage = () => {
   /* ── mutations ─────────────────────────────── */
   const saveMutation = useMutation({
     mutationFn: (updates: Partial<CompanyProfile>) => updateCompanyProfile(companyId || "", updates),
-    onSuccess: () => {
+    onSuccess: (data: Record<string, unknown>) => {
       queryClient.invalidateQueries({ queryKey: ["company", companyId] });
-      pushToast("Profile saved", "success");
       setEditing(false);
+      if (data?.rescraping) {
+        pushToast("Profile saved. Re-scraping website & rebuilding profile in background...", "success");
+      } else if (data?.reprocessing) {
+        pushToast("Profile saved. Rebuilding company profile in background...", "success");
+      } else {
+        pushToast("Profile saved", "success");
+      }
     },
     onError: () => pushToast("Unable to save profile", "error"),
   });
@@ -250,6 +256,9 @@ const OrganizationPage = () => {
                 : i
             )
           );
+          if (response.reprocessing) {
+            pushToast("File uploaded. Rebuilding company profile in background...", "success");
+          }
         } catch {
           setFileItems((prev) =>
             prev.map((i) => (i.localId === localId ? { ...i, progress: 0, status: "failed" } : i))
@@ -258,7 +267,7 @@ const OrganizationPage = () => {
       }
       queryClient.invalidateQueries({ queryKey: ["company", companyId] });
     },
-    [companyId, queryClient]
+    [companyId, queryClient, pushToast]
   );
 
   const removeFile = async (item: UploadItem) => {
