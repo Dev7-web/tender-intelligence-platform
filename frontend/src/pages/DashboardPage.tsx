@@ -135,9 +135,9 @@ const DashboardPage = () => {
       </div>
 
       <div className="mt-5 grid gap-4 xl:grid-cols-[1fr_320px]">
-        <div className="rounded-xl border border-[#d8dce6] bg-white p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-[#262b38]">Tenders Report</h2>
+        <div className="rounded-xl border border-[#d8dce6] bg-white px-5 py-5">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-[#262b38]">Tenders Report</h2>
             <div className="flex items-center gap-2">
               {rangeOptions.map((option) => (
                 <button
@@ -207,7 +207,7 @@ const DashboardPage = () => {
               </ResponsiveContainer>
             </div>
             <div className="w-[90px] pt-6">
-              <div className="space-y-2 text-sm text-[#3f4759]">
+              <div className="space-y-3 text-[13px] text-[#3f4759]">
                 {reportLegend.map((item) => (
                   <div key={item.label} className="flex items-center gap-2">
                     <img src={item.dot} alt={`${item.label} legend dot`} className="h-2 w-2 shrink-0" />
@@ -219,9 +219,9 @@ const DashboardPage = () => {
           </div>
         </div>
 
-        <div className="rounded-xl border border-[#d8dce6] bg-white p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-xl font-semibold text-[#262b38]">Tenders Overview</h2>
+        <div className="rounded-xl border border-[#d8dce6] bg-white px-5 py-5">
+          <div className="mb-5 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-[#262b38]">Tenders Overview</h2>
             <select
               value={overviewRange}
               onChange={(event) => setOverviewRange(event.target.value)}
@@ -229,28 +229,28 @@ const DashboardPage = () => {
             >
               {rangeOptions.map((option) => (
                 <option key={option.value} value={option.value}>
-                  {option.label}
+                  Last {option.label}
                 </option>
               ))}
             </select>
           </div>
 
-          <div className="space-y-4 text-sm text-[#434a5f]">
-            <div className="flex justify-between">
+          <div className="space-y-5 text-[14px] text-[#434a5f]">
+            <div className="flex items-center justify-between">
               <span>Tenders Gathering</span>
-              <strong>{selectedOverview?.gathering || 0}</strong>
+              <span className="font-semibold text-[#1f2533]">{(selectedOverview?.gathering || 0).toLocaleString("en-IN")}</span>
             </div>
-            <div className="flex justify-between">
+            <div className="flex items-center justify-between">
               <span>Tenders Analyzed</span>
-              <strong>{selectedOverview?.analyzed || 0}</strong>
+              <span className="font-semibold text-[#1f2533]">{(selectedOverview?.analyzed || 0).toLocaleString("en-IN")}</span>
             </div>
-            <div className="flex justify-between">
+            <div className="flex items-center justify-between">
               <span>Tenders Saved</span>
-              <strong>{selectedOverview?.saved || 0}</strong>
+              <span className="font-semibold text-[#1f2533]">{(selectedOverview?.saved || 0).toLocaleString("en-IN")}</span>
             </div>
-            <div className="flex justify-between">
+            <div className="flex items-center justify-between">
               <span>Tenders Applied</span>
-              <strong>{selectedOverview?.applied || 0}</strong>
+              <span className="font-semibold text-[#1f2533]">{(selectedOverview?.applied || 0).toLocaleString("en-IN")}</span>
             </div>
           </div>
         </div>

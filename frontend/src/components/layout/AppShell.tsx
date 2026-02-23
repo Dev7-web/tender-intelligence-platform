@@ -64,11 +64,6 @@ const AppShell = ({ children }: PropsWithChildren) => {
     };
   }, [navigate, pushToast]);
 
-  const handleNavigate = (path: string) => {
-    navigate(path);
-    setMenuOpen(false);
-  };
-
   const handleSignOut = () => {
     clearAuth("manual");
     navigate("/auth");
@@ -128,23 +123,6 @@ const AppShell = ({ children }: PropsWithChildren) => {
                     <p className="mt-1 text-sm font-semibold text-[#2c3243]">{displayName}</p>
                     {displayEmail && <p className="text-xs text-[#6f7687]">{displayEmail}</p>}
                   </div>
-                  <div className="my-1 h-px bg-[#e6e9f2]" />
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="flex w-full items-center rounded-md px-3 py-2 text-sm text-[#303543] hover:bg-[#f2f4fb]"
-                    onClick={() => handleNavigate("/organization")}
-                  >
-                    My Organization
-                  </button>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    className="flex w-full items-center rounded-md px-3 py-2 text-sm text-[#303543] hover:bg-[#f2f4fb]"
-                    onClick={() => handleNavigate("/help")}
-                  >
-                    Help
-                  </button>
                   <div className="my-1 h-px bg-[#e6e9f2]" />
                   <button
                     type="button"
