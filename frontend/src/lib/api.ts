@@ -21,7 +21,7 @@ api.interceptors.response.use(
   (error) => {
     const status = error?.response?.status;
     if (status === 401) {
-      clearAuth();
+      clearAuth("session-expired");
     }
     return Promise.reject(error);
   }
