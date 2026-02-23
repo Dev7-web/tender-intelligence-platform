@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Search, X } from "lucide-react";
 
+import aiResponseSparkleIcon from "@/assets/tenders/ai-response-sparkle.svg";
 import aiSparkleIcon from "@/assets/tenders/ai-sparkle.svg";
 import aiSparkleBlueIcon from "@/assets/tenders/ai-sparkle-blue.svg";
 import sendButtonIcon from "@/assets/tenders/send-button.svg";
@@ -103,19 +104,23 @@ const DiscussWithAI = ({ open, onClose, tenderId, companyId }: DiscussWithAIProp
             </div>
           ) : (
             <div className="flex h-full flex-col gap-3 overflow-y-auto pr-1">
-              {messages.map((message, index) => (
-                <div
-                  key={`${message.role}-${index}`}
-                  className={[
-                    "max-w-[72%] rounded-xl px-4 py-3 text-[15px] leading-6",
-                    message.role === "assistant"
-                      ? "self-start bg-[#dfe1f8] text-[#30364a]"
-                      : "self-end bg-white text-[#30364a]",
-                  ].join(" ")}
-                >
-                  {message.content}
-                </div>
-              ))}
+              {messages.map((message, index) =>
+                message.role === "assistant" ? (
+                  <div key={`${message.role}-${index}`} className="flex max-w-[72%] items-start gap-2 self-start">
+                    <img src={aiResponseSparkleIcon} alt="" className="mt-1 h-8 w-8 shrink-0" />
+                    <div className="rounded-xl bg-[#dfe1f8] px-4 py-3 text-[15px] leading-6 text-[#30364a]">
+                      {message.content}
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    key={`${message.role}-${index}`}
+                    className="max-w-[72%] self-end rounded-xl bg-white px-4 py-3 text-[15px] leading-6 text-[#30364a]"
+                  >
+                    {message.content}
+                  </div>
+                )
+              )}
             </div>
           )}
         </div>
