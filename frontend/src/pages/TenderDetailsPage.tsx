@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { format } from "date-fns";
 import { ArrowLeft, Download, Share2 } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
@@ -56,36 +57,53 @@ const TenderDetailsPage = () => {
   const title = meta.title || scraped.items || tender?.bid_id;
 
   const amount = useMemo(() => meta.estimated_value || scraped.bid_value_range || "N/A", [meta, scraped]);
+  const closesOn = useMemo(() => {
+    if (!scraped.end_date) return "N/A";
+    const parsed = new Date(scraped.end_date);
+    if (Number.isNaN(parsed.getTime())) {
+      return String(scraped.end_date).slice(0, 10);
+    }
+    return format(parsed, "d MMM yyyy");
+  }, [scraped.end_date]);
 
   return (
     <div>
-      <button onClick={() => navigate("/tenders")} className="mb-4 text-sm text-[#4040E0]">
+      <button
+        onClick={() => navigate("/tenders")}
+        className="mb-5 text-sm font-medium text-[#4040E0] hover:text-[#2f2fe0]"
+      >
         <ArrowLeft size={14} className="mr-1 inline" /> Back to Search
       </button>
 
-      <div className="rounded-xl border border-[#d8dce6] bg-white p-6">
+      <div className="rounded-2xl border border-[#e3e6ef] bg-white p-6 shadow-sm md:p-7">
         <div className="mb-3 flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="mb-2 flex flex-wrap gap-2 text-[10px]">
-              <span className="rounded-full bg-[#4040E0] px-2 py-1 text-white">GeM</span>
-              <span className="rounded-full bg-[#eef0ff] px-2 py-1 text-[#4040E0]">Active</span>
-              <span className="rounded-full border border-[#dde1eb] px-2 py-1 text-[#6d7386]">Goods</span>
+            <div className="mb-3 flex flex-wrap gap-2 text-[10px]">
+              <span className="rounded-full bg-[#4040E0] px-3 py-1 text-white">GeM</span>
+              <span className="rounded-full border border-[#4040E0] bg-white px-3 py-1 text-[#4040E0]">
+                Active
+              </span>
+              <span className="rounded-full border border-[#dde1eb] bg-white px-3 py-1 text-[#6d7386]">Goods</span>
               {scraped.items && (
-                <span className="rounded-full border border-[#dde1eb] px-2 py-1 text-[#6d7386]">{scraped.items}</span>
+                <span className="max-w-[420px] truncate rounded-full border border-[#dde1eb] bg-white px-3 py-1 text-[#6d7386]">
+                  {scraped.items}
+                </span>
               )}
-              <span className="rounded-full border border-[#dde1eb] px-2 py-1 text-[#6d7386]">PRODUCT</span>
+              <span className="rounded-full border border-[#dde1eb] bg-white px-3 py-1 text-[#6d7386]">
+                PRODUCT
+              </span>
             </div>
-            <h1 className="text-2xl font-semibold text-[#222835] md:text-4xl">{title}</h1>
+            <h1 className="text-2xl font-semibold leading-snug text-[#222835] md:text-4xl">{title}</h1>
           </div>
           <button
             onClick={() => setOpenDiscuss(true)}
-            className="flex h-11 shrink-0 items-center gap-2 rounded-full bg-[#4040E0] px-5 text-sm text-white"
+            className="flex h-11 shrink-0 items-center gap-2 rounded-full bg-[#4040E0] px-5 text-sm font-medium text-white"
           >
             <img src={sparkleIcon} alt="" className="h-5 w-5" /> Discuss with AI
           </button>
         </div>
 
-        <p className="flex items-center gap-2 text-xl font-semibold text-[#212734] md:text-2xl">
+        <p className="flex items-center gap-2 text-lg font-semibold text-[#212734] md:text-2xl">
           <img src={organizationIcon} alt="" className="h-6 w-6" />
           {meta.department || scraped.department || "Department"}
         </p>
@@ -98,7 +116,7 @@ const TenderDetailsPage = () => {
             <img src={rupeeIcon} alt="" className="h-5 w-5" /> Amount: <strong>{amount}</strong>
           </span>
           <span className="flex items-center gap-1.5">
-            <img src={calendarRedIcon} alt="" className="h-5 w-5" /> Closes: <strong>{String(scraped.end_date || "N/A").slice(0, 10)}</strong>
+            <img src={calendarRedIcon} alt="" className="h-5 w-5" /> Closes: <strong>{closesOn}</strong>
           </span>
           <span className="rounded bg-[#daf4eb] px-2 py-1 text-xs text-[#16835e]">12d left</span>
           <span className="rounded bg-[#fdeecf] px-2 py-1 text-xs text-[#c98300]">4d left</span>
@@ -109,32 +127,26 @@ const TenderDetailsPage = () => {
           <div className="flex flex-wrap justify-end gap-2">
             <button
               onClick={() => actionMutation.mutate("discarded")}
-              className="flex items-center gap-1.5 rounded-full border border-[#ef8f93] px-3 py-1.5 text-xs text-[#dd5056]"
+              className="flex items-center gap-1.5 rounded-full border border-[#ef8f93] px-4 py-2 text-xs font-medium text-[#dd5056]"
             >
               <img src={discardIcon} alt="" className="h-4 w-4" /> Discard tender
             </button>
             <button
               onClick={() => setOpenShare(true)}
-              className="rounded-full border border-[#d5d9e5] px-3 py-1.5 text-xs text-[#30374a]"
+              className="rounded-full border border-[#d5d9e5] px-4 py-2 text-xs font-medium text-[#30374a]"
             >
               <Share2 size={12} className="mr-1 inline" /> Share
             </button>
             <button
               onClick={() => actionMutation.mutate("saved")}
-              className="flex items-center gap-1.5 rounded-full border border-[#d5d9e5] px-3 py-1.5 text-xs text-[#30374a]"
+              className="flex items-center gap-1.5 rounded-full border border-[#d5d9e5] px-4 py-2 text-xs font-medium text-[#30374a]"
             >
               <img src={saveIcon} alt="" className="h-4 w-4" /> Save
             </button>
             <button
-              onClick={() => actionMutation.mutate("applied")}
-              className="rounded-full border border-[#d5d9e5] px-3 py-1.5 text-xs text-[#30374a]"
-            >
-              Apply
-            </button>
-            <button
               type="button"
               onClick={handleDownload}
-              className="rounded-full bg-[#4040E0] px-3 py-1.5 text-xs text-white"
+              className="rounded-full bg-[#4040E0] px-4 py-2 text-xs font-medium text-white"
             >
               <Download size={12} className="mr-1 inline" /> Download Documents
             </button>

@@ -12,16 +12,16 @@ const MyListPage = () => {
   const companyId = getCompanyId() || "";
   const navigate = useNavigate();
   const [selectedShareTenderId, setSelectedShareTenderId] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState<"applied" | "pinned" | "closing" | "missed">("applied");
+  const [sortBy, setSortBy] = useState<"applied" | "pinned" | "closing">("applied");
   const [sortOpen, setSortOpen] = useState(false);
   const sortRef = useRef<HTMLDivElement | null>(null);
   const [pinnedIds, setPinnedIds] = useState<Set<string>>(new Set());
+  const [appliedIds, setAppliedIds] = useState<Set<string>>(new Set());
 
   const sortOptions = [
     { value: "applied", label: "Applied" },
     { value: "pinned", label: "Pinned" },
     { value: "closing", label: "Closing soon" },
-    { value: "missed", label: "Missed" },
   ] as const;
 
   const { data, refetch } = useQuery({
@@ -60,8 +60,30 @@ const MyListPage = () => {
 
   useEffect(() => {
     if (!companyId) return;
+    const stored = localStorage.getItem(`ta_applied_${companyId}`);
+    if (!stored) {
+      setAppliedIds(new Set());
+      return;
+    }
+    try {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        setAppliedIds(new Set(parsed));
+      }
+    } catch {
+      setAppliedIds(new Set());
+    }
+  }, [companyId]);
+
+  useEffect(() => {
+    if (!companyId) return;
     localStorage.setItem(`ta_pinned_${companyId}`, JSON.stringify(Array.from(pinnedIds)));
   }, [companyId, pinnedIds]);
+
+  useEffect(() => {
+    if (!companyId) return;
+    localStorage.setItem(`ta_applied_${companyId}`, JSON.stringify(Array.from(appliedIds)));
+  }, [companyId, appliedIds]);
 
   useEffect(() => {
     if (!sortOpen) return;
@@ -82,7 +104,7 @@ const MyListPage = () => {
       return parsed && !Number.isNaN(parsed.getTime()) ? parsed : null;
     };
     const isPinned = (item: any) => pinnedIds.has(item.tender?.id);
-    const isApplied = (item: any) => item.action === "applied";
+    const isApplied = (item: any) => appliedIds.has(item.tender?.id);
 
     if (sortBy === "pinned") {
       list.sort((a, b) => Number(isPinned(b)) - Number(isPinned(a)));
@@ -94,23 +116,25 @@ const MyListPage = () => {
         const bDate = getEndDate(b)?.getTime() ?? Number.POSITIVE_INFINITY;
         return aDate - bDate;
       });
-    } else if (sortBy === "missed") {
-      list.sort((a, b) => {
-        const now = Date.now();
-        const aDate = getEndDate(a)?.getTime() ?? Number.POSITIVE_INFINITY;
-        const bDate = getEndDate(b)?.getTime() ?? Number.POSITIVE_INFINITY;
-        const aMissed = aDate < now;
-        const bMissed = bDate < now;
-        if (aMissed !== bMissed) return aMissed ? -1 : 1;
-        return aDate - bDate;
-      });
     }
 
     return list;
-  }, [items, pinnedIds, sortBy]);
+  }, [items, pinnedIds, appliedIds, sortBy]);
 
   const handlePin = (tenderId: string) => {
     setPinnedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(tenderId)) {
+        next.delete(tenderId);
+      } else {
+        next.add(tenderId);
+      }
+      return next;
+    });
+  };
+
+  const handleApplied = (tenderId: string) => {
+    setAppliedIds((prev) => {
       const next = new Set(prev);
       if (next.has(tenderId)) {
         next.delete(tenderId);
@@ -170,17 +194,14 @@ const MyListPage = () => {
             key={item.tender.id}
             item={item}
             isPinned={pinnedIds.has(item.tender.id)}
-            isApplied={item.action === "applied"}
+            isApplied={appliedIds.has(item.tender.id)}
             onOpen={(tenderId) => navigate(`/tenders/${tenderId}`)}
             onRemove={async (tenderId) => {
               await updateTenderAction(tenderId, { company_id: companyId, action: null });
               refetch();
             }}
             onPin={handlePin}
-            onApplied={async (tenderId) => {
-              await updateTenderAction(tenderId, { company_id: companyId, action: "applied" });
-              refetch();
-            }}
+            onApplied={handleApplied}
             onShare={(tenderId) => setSelectedShareTenderId(tenderId)}
           />
         ))}

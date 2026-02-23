@@ -113,21 +113,21 @@ const SavedTenderCard = ({
           <button
             onClick={() => onPin(tender.id)}
             className={[
-              "rounded-full border px-3 py-1.5 text-xs",
-              isPinned ? "border-[#4040E0] bg-[#eef0ff] text-[#4040E0]" : "border-[#d5d9e5] text-[#30374a]",
+              "rounded-full border px-3 py-1.5 text-xs font-medium",
+              isPinned ? "border-[#4040E0] bg-[#4040E0] text-white" : "border-[#d5d9e5] text-[#30374a]",
             ].join(" ")}
           >
-            <Pin size={12} className="mr-1 inline" />
+            <Pin size={12} className={["mr-1 inline", isPinned ? "text-white" : "text-[#4b5563]"].join(" ")} />
             {isPinned ? "Pinned" : "Pin"}
           </button>
           <button
             onClick={() => onApplied(tender.id)}
             className={[
-              "rounded-full border px-3 py-1.5 text-xs",
-              isApplied ? "border-[#4040E0] bg-[#eef0ff] text-[#4040E0]" : "border-[#d5d9e5] text-[#30374a]",
+              "rounded-full border px-3 py-1.5 text-xs font-medium",
+              isApplied ? "border-[#4040E0] bg-[#4040E0] text-white" : "border-[#d5d9e5] text-[#30374a]",
             ].join(" ")}
           >
-            <Check size={12} className="mr-1 inline" />
+            <Check size={12} className={["mr-1 inline", isApplied ? "text-white" : "text-[#4b5563]"].join(" ")} />
             Applied
           </button>
           <button
