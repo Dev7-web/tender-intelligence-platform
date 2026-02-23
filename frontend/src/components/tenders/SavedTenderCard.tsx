@@ -1,0 +1,152 @@
+import { Check, Download, Pin } from "lucide-react";
+import { format } from "date-fns";
+
+import calendarIcon from "@/assets/tenders/calendar-outline.svg";
+import calendarRedIcon from "@/assets/tenders/calendar-red.svg";
+import locationIcon from "@/assets/tenders/location.svg";
+import rupeeIcon from "@/assets/tenders/rupee.svg";
+import shareIcon from "@/assets/tenders/share.svg";
+import { downloadTenderFile } from "@/services/tenderAgentApi";
+import { MatchItem } from "@/types/tender-agent";
+
+interface SavedTenderCardProps {
+  item: MatchItem;
+  isPinned: boolean;
+  isApplied: boolean;
+  onOpen: (tenderId: string) => void;
+  onRemove: (tenderId: string) => void;
+  onPin: (tenderId: string) => void;
+  onApplied: (tenderId: string) => void;
+  onShare: (tenderId: string) => void;
+}
+
+const badgeClass = "rounded-full border border-[#d6dae8] px-2 py-0.5 text-[11px] text-[#646d84]";
+
+const safeDate = (value?: string) => {
+  if (!value) return "N/A";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return String(value).slice(0, 10);
+  }
+  return format(parsed, "d MMM yyyy");
+};
+
+const SavedTenderCard = ({
+  item,
+  isPinned,
+  isApplied,
+  onOpen,
+  onRemove,
+  onPin,
+  onApplied,
+  onShare,
+}: SavedTenderCardProps) => {
+  const tender = item.tender;
+  const meta = tender.metadata || {};
+  const scraped = tender.scraped_info || {};
+  const title = meta.title || scraped.items || tender.bid_id || "Tender";
+  const department = meta.department || scraped.department || "Department";
+  const location = meta.location || scraped.department || "India";
+  const scorePercent = Math.round((item.match?.score || 0) * 100);
+
+  const handleDownload = async () => {
+    try {
+      await downloadTenderFile(tender.id);
+    } catch (error) {
+      console.error("Download failed", error);
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-[#d8dce6] bg-white p-4 shadow-sm transition hover:border-[#bfc5d8] md:p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <button
+            onClick={() => onOpen(tender.id)}
+            className="block w-full truncate text-left text-lg font-semibold text-[#1f2533] hover:text-[#4040E0] md:text-xl"
+          >
+            {title}
+          </button>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-[13px] text-[#666e83]">
+            <img src={locationIcon} alt="" className="h-3.5 w-3.5" />
+            <span className="min-w-0 break-words">{location}</span>
+            <span>•</span>
+            <img src={calendarIcon} alt="" className="h-3.5 w-3.5" />
+            <span>Published {safeDate(scraped.start_date)}</span>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <span className="rounded-full bg-[#4040E0] px-2 py-1 text-[10px] text-white">GeM</span>
+            <span className={badgeClass}>{scraped.bid_type || "Product Bid/RAs"}</span>
+            {(meta.domains || []).slice(0, 2).map((tag) => (
+              <span key={tag} className={badgeClass}>
+                {tag}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex h-[86px] w-[86px] flex-col items-center justify-center rounded-full border-4 border-[#4040E0] text-center">
+          <p className="text-lg font-semibold text-[#202532]">{scorePercent}%</p>
+          <p className="text-[11px] text-[#687088]">Matched</p>
+        </div>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[#ebedf4] pt-3">
+        <div className="flex items-center gap-4 text-sm text-[#525a70]">
+          <span className="inline-flex items-center gap-1 font-medium text-[#159d76]">
+            <img src={rupeeIcon} alt="" className="h-4 w-4" />
+            {scraped.bid_value_range || meta.estimated_value || "N/A"}
+          </span>
+          <span className="inline-flex items-center gap-1 text-[#d75252]">
+            <img src={calendarRedIcon} alt="" className="h-4 w-4" />
+            {safeDate(scraped.end_date)}
+          </span>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => onRemove(tender.id)}
+            className="rounded-full border border-[#ef8f93] px-3 py-1.5 text-xs text-[#dd5056]"
+          >
+            Remove
+          </button>
+          <button
+            onClick={() => onPin(tender.id)}
+            className={[
+              "rounded-full border px-3 py-1.5 text-xs",
+              isPinned ? "border-[#4040E0] bg-[#eef0ff] text-[#4040E0]" : "border-[#d5d9e5] text-[#30374a]",
+            ].join(" ")}
+          >
+            <Pin size={12} className="mr-1 inline" />
+            {isPinned ? "Pinned" : "Pin"}
+          </button>
+          <button
+            onClick={() => onApplied(tender.id)}
+            className={[
+              "rounded-full border px-3 py-1.5 text-xs",
+              isApplied ? "border-[#4040E0] bg-[#eef0ff] text-[#4040E0]" : "border-[#d5d9e5] text-[#30374a]",
+            ].join(" ")}
+          >
+            <Check size={12} className="mr-1 inline" />
+            Applied
+          </button>
+          <button
+            onClick={() => onShare(tender.id)}
+            className="rounded-full border border-[#d5d9e5] px-3 py-1.5 text-xs text-[#30374a]"
+          >
+            <img src={shareIcon} alt="" className="mr-1 inline h-3 w-3" /> Share
+          </button>
+          <button
+            type="button"
+            onClick={handleDownload}
+            className="rounded-full bg-[#4040E0] px-3 py-1.5 text-xs text-white"
+          >
+            <Download size={12} className="mr-1 inline" /> Download
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default SavedTenderCard;
