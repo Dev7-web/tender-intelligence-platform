@@ -4,7 +4,11 @@ export interface CompanyProfile {
   name: string;
   company_url: string;
   experience_years: number;
+  turnover?: string;
+  description?: string;
   interest_tags: string[];
+  interested_states?: string[];
+  tender_topics?: string[];
   website_scrape?: {
     status: string;
     pages: string[];
@@ -74,6 +78,13 @@ export interface DashboardStats {
     best_tenders_found: number;
     tenders_saved: number;
     tenders_applied: number;
+  };
+  overview_range?: "7d" | "10d" | "6m" | "12m";
+  overview?: {
+    gathering: number;
+    analyzed: number;
+    saved: number;
+    applied: number;
   };
   overview_last_7_days: {
     gathering: number;

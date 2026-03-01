@@ -1,6 +1,13 @@
-import { CalendarDays, Download, MapPin, Share2 } from "lucide-react";
+import { Download } from "lucide-react";
+import { format } from "date-fns";
 
-import { downloadTenderUrl } from "@/services/tenderAgentApi";
+import calendarIcon from "@/assets/tenders/calendar-outline.svg";
+import calendarRedIcon from "@/assets/tenders/calendar-red.svg";
+import locationIcon from "@/assets/tenders/location.svg";
+import rupeeIcon from "@/assets/tenders/rupee.svg";
+import saveIcon from "@/assets/tenders/save.svg";
+import shareIcon from "@/assets/tenders/share.svg";
+import { downloadTenderFile } from "@/services/tenderAgentApi";
 import { MatchItem } from "@/types/tender-agent";
 
 interface TenderMatchCardProps {
@@ -12,31 +19,48 @@ interface TenderMatchCardProps {
 
 const badgeClass = "rounded-full border border-[#d6dae8] px-2 py-0.5 text-[11px] text-[#646d84]";
 
+const safeDate = (value?: string) => {
+  if (!value) return "N/A";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return String(value).slice(0, 10);
+  }
+  return format(parsed, "d MMM yyyy");
+};
+
 const TenderMatchCard = ({ item, onOpen, onAction, onShare }: TenderMatchCardProps) => {
   const tender = item.tender;
   const meta = tender.metadata || {};
   const scraped = tender.scraped_info || {};
-  const title = meta.title || scraped.items || tender.bid_id;
+  const title = meta.title || scraped.items || tender.bid_id || "Tender";
   const department = meta.department || scraped.department || "Department";
-  const location = meta.location || "India";
+  const location = meta.location || department || "India";
   const scorePercent = Math.round((item.match?.score || 0) * 100);
 
+  const handleDownload = async () => {
+    try {
+      await downloadTenderFile(tender.id);
+    } catch (error) {
+      console.error("Download failed", error);
+    }
+  };
+
   return (
-    <div className="rounded-xl border border-[#d8dce6] bg-white p-4 shadow-sm">
+    <div className="rounded-xl border border-[#d8dce6] bg-white p-4 shadow-sm transition hover:border-[#bfc5d8]">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <button
             onClick={() => onOpen(tender.id)}
-            className="truncate text-left text-lg font-semibold text-[#1f2533] hover:text-[#4040E0] md:text-xl"
+            className="block w-full truncate text-left text-lg font-semibold text-[#1f2533] hover:text-[#4040E0] md:text-xl"
           >
-            {department}
+            {title}
           </button>
-          <div className="mt-2 flex items-center gap-2 text-[13px] text-[#666e83]">
-            <MapPin size={13} />
-            <span>{location}</span>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-[13px] text-[#666e83]">
+            <img src={locationIcon} alt="" className="h-3.5 w-3.5" />
+            <span className="min-w-0 break-words">{location}</span>
             <span>•</span>
-            <CalendarDays size={13} />
-            <span>Published {String(scraped.start_date || "N/A").slice(0, 10)}</span>
+            <img src={calendarIcon} alt="" className="h-3.5 w-3.5" />
+            <span>Published {safeDate(scraped.start_date)}</span>
           </div>
           <div className="mt-2 flex flex-wrap gap-2">
             <span className="rounded-full bg-[#4040E0] px-2 py-1 text-[10px] text-white">GeM</span>
@@ -47,7 +71,7 @@ const TenderMatchCard = ({ item, onOpen, onAction, onShare }: TenderMatchCardPro
               </span>
             ))}
           </div>
-          <p className="mt-2 line-clamp-2 text-sm text-[#5f667a]">{meta.summary || title}</p>
+          <p className="mt-2 break-words text-sm text-[#5f667a]">{meta.summary || department}</p>
         </div>
 
         <div className="flex h-[86px] w-[86px] flex-col items-center justify-center rounded-full border-4 border-[#4040E0] text-center">
@@ -58,8 +82,14 @@ const TenderMatchCard = ({ item, onOpen, onAction, onShare }: TenderMatchCardPro
 
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[#ebedf4] pt-3">
         <div className="flex items-center gap-4 text-sm text-[#525a70]">
-          <span className="font-medium text-[#159d76]">{scraped.bid_value_range || meta.estimated_value || "N/A"}</span>
-          <span className="text-[#d75252]">{String(scraped.end_date || "N/A").slice(0, 10)}</span>
+          <span className="inline-flex items-center gap-1 font-medium text-[#159d76]">
+            <img src={rupeeIcon} alt="" className="h-4 w-4" />
+            {scraped.bid_value_range || meta.estimated_value || "N/A"}
+          </span>
+          <span className="inline-flex items-center gap-1 text-[#d75252]">
+            <img src={calendarRedIcon} alt="" className="h-4 w-4" />
+            {safeDate(scraped.end_date)}
+          </span>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -73,22 +103,22 @@ const TenderMatchCard = ({ item, onOpen, onAction, onShare }: TenderMatchCardPro
             onClick={() => onShare(tender.id)}
             className="rounded-full border border-[#d5d9e5] px-3 py-1.5 text-xs text-[#30374a]"
           >
-            <Share2 size={12} className="mr-1 inline" /> Share
+            <img src={shareIcon} alt="" className="mr-1 inline h-3 w-3" /> Share
           </button>
           <button
             onClick={() => onAction(tender.id, item.action === "saved" ? null : "saved")}
             className="rounded-full border border-[#d5d9e5] px-3 py-1.5 text-xs text-[#30374a]"
           >
+            <img src={saveIcon} alt="" className="mr-1 inline h-3.5 w-3.5" />
             {item.action === "saved" ? "Saved" : "Save"}
           </button>
-          <a
-            href={downloadTenderUrl(tender.id)}
+          <button
+            type="button"
+            onClick={handleDownload}
             className="rounded-full bg-[#4040E0] px-3 py-1.5 text-xs text-white"
-            target="_blank"
-            rel="noreferrer"
           >
             <Download size={12} className="mr-1 inline" /> Download
-          </a>
+          </button>
         </div>
       </div>
     </div>

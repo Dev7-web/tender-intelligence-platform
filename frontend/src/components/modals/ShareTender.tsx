@@ -16,6 +16,17 @@ interface Recipient {
   name: string;
 }
 
+const AVATAR_COLORS = [
+  { bg: "bg-pink-200", text: "text-pink-700" },
+  { bg: "bg-teal-200", text: "text-teal-700" },
+  { bg: "bg-purple-200", text: "text-purple-700" },
+  { bg: "bg-blue-200", text: "text-blue-700" },
+  { bg: "bg-amber-200", text: "text-amber-700" },
+  { bg: "bg-green-200", text: "text-green-700" },
+];
+
+const getAvatarColor = (index: number) => AVATAR_COLORS[index % AVATAR_COLORS.length];
+
 const ShareTender = ({ open, onClose, tenderId, companyId }: ShareTenderProps) => {
   const [input, setInput] = useState("");
   const [recipients, setRecipients] = useState<Recipient[]>([]);
@@ -75,21 +86,21 @@ const ShareTender = ({ open, onClose, tenderId, companyId }: ShareTenderProps) =
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/55 p-4">
-      <div className="w-full max-w-[820px] rounded-md bg-[#f7f7f7] p-4">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4">
+      <div className="w-full max-w-[860px] rounded-2xl bg-white px-8 py-6">
         <div className="flex items-center justify-between">
-          <h3 className="text-xl font-semibold text-[#171b23] md:text-2xl">Share Tender by Email</h3>
-          <button onClick={onClose}>
-            <X size={20} />
+          <h3 className="text-2xl font-bold text-[#111827]">Share Tender by Email</h3>
+          <button onClick={onClose} className="text-[#111827]">
+            <X size={24} strokeWidth={2.5} />
           </button>
         </div>
 
-        <div className="mt-3 flex gap-2">
+        <div className="mt-5 flex gap-3">
           <input
             value={input}
             onChange={(event) => setInput(event.target.value)}
-            placeholder="Enter Email..."
-            className="h-10 flex-1 rounded border border-[#c9ceda] bg-white px-3 text-sm"
+            placeholder="Example@gmail.com"
+            className="h-12 flex-1 rounded-lg border border-[#c9ceda] bg-white px-4 text-base text-[#111827] placeholder:text-[#9ca3af]"
             onKeyDown={(event) => {
               if (event.key === "Enter") {
                 event.preventDefault();
@@ -97,45 +108,51 @@ const ShareTender = ({ open, onClose, tenderId, companyId }: ShareTenderProps) =
               }
             }}
           />
-          <button onClick={addRecipient} className="h-10 rounded bg-[#4040E0] px-5 text-sm text-white">
+          <button onClick={addRecipient} className="h-12 rounded-lg bg-[#4040E0] px-7 text-base font-medium text-white">
             Add
           </button>
         </div>
 
-        <div className="mt-3 rounded border border-[#c9ceda] bg-white p-3">
-          <p className="mb-2 text-xs text-[#1f242f]">Individuals authorized to receive the tender</p>
-          <div className="flex min-h-[150px] flex-wrap gap-3">
-            {recipients.map((recipient) => (
-              <div
-                key={recipient.email}
-                className="flex w-[220px] items-center justify-between rounded-md border border-[#e2e5ec] bg-[#f8f8f8] px-2 py-2"
-              >
-                <div className="flex items-center gap-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded bg-[#ece0f3] text-xs font-semibold text-[#a46cc6]">
-                    {recipient.name
-                      .split(" ")
-                      .slice(0, 2)
-                      .map((part) => part[0])
-                      .join("")
-                      .toUpperCase()}
+        <fieldset className="mt-5 min-h-[200px] rounded-lg border border-[#c9ceda] px-5 pb-5 pt-1">
+          <legend className="px-1 text-sm font-semibold text-[#111827]">
+            Individuals authorized to receive the tender
+          </legend>
+          <div className="flex flex-col gap-4 pt-2">
+            {recipients.map((recipient, index) => {
+              const color = getAvatarColor(index);
+              const initials = recipient.name
+                .split(" ")
+                .slice(0, 2)
+                .map((part) => part[0])
+                .join("")
+                .toUpperCase();
+              return (
+                <div
+                  key={recipient.email}
+                  className="flex w-fit items-center gap-3 rounded-xl border border-[#e5e7eb] bg-[#fafafa] px-4 py-2.5"
+                >
+                  <div
+                    className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-sm font-bold ${color.bg} ${color.text}`}
+                  >
+                    {initials}
                   </div>
-                  <div>
-                    <p className="text-sm font-medium text-[#1f242f]">{recipient.name}</p>
-                    <p className="text-[11px] text-[#7d8598]">{recipient.email}</p>
+                  <div className="mr-2">
+                    <p className="text-sm font-semibold text-[#111827]">{recipient.name}</p>
+                    <p className="text-xs text-[#6b7280]">{recipient.email}</p>
                   </div>
+                  <button onClick={() => removeRecipient(recipient.email)} className="text-[#111827]">
+                    <X size={20} strokeWidth={2.5} />
+                  </button>
                 </div>
-                <button onClick={() => removeRecipient(recipient.email)}>
-                  <X size={15} />
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
-        </div>
+        </fieldset>
 
         <button
           disabled={!canDone}
           onClick={submit}
-          className="mx-auto mt-3 block h-11 min-w-[160px] rounded-2xl bg-[#4040E0] px-7 text-sm text-white disabled:opacity-50"
+          className="mx-auto mt-5 block h-12 min-w-[220px] rounded-full bg-[#4040E0] px-8 text-base font-medium text-white disabled:opacity-50"
         >
           {sending ? "Sending..." : "Done"}
         </button>

@@ -21,7 +21,7 @@ const AdminLayout = () => {
   return (
     <div className="min-h-screen bg-[#F5F5F5]">
       {/* Header */}
-      <header className="bg-white border-b border-[#E5E7EB]">
+      <header className="relative z-10 bg-white border-b border-[#E5E7EB]">
         <div className="px-4 sm:px-8 h-16 flex items-center">
           {/* Logo */}
           <div className="flex items-center gap-2">

@@ -1,21 +1,54 @@
+# Python
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-*.log
-.env
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
 .venv/
 venv/
+
+# Secrets / API keys
+.env
 .env.*
+*.pem
+*.key
+credentials.json
+secrets.json
+service-account*.json
+
+# Testing / linting
 .pytest_cache/
 .mypy_cache/
 .coverage
 htmlcov/
+
+# IDE
 .idea/
 .vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+npm-debug.log*
+
+# Frontend
 frontend/node_modules/
 frontend/dist/
+frontend/.vite/
 
 # Local data
 /data/pdfs/
 /data/logs/
+/screenshot
+/svg

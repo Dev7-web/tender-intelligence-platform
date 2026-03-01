@@ -23,6 +23,17 @@ class CreateCompanyRequest(BaseModel):
     experience_years: int = Field(ge=0, le=100)
 
 
+class UpdateCompanyRequest(BaseModel):
+    name: Optional[str] = None
+    company_url: Optional[str] = None
+    experience_years: Optional[int] = Field(default=None, ge=0, le=100)
+    turnover: Optional[str] = None
+    description: Optional[str] = None
+    interest_tags: Optional[List[str]] = None
+    interested_states: Optional[List[str]] = None
+    tender_topics: Optional[List[str]] = None
+
+
 class InterestsRequest(BaseModel):
     interest_tags: List[str] = Field(default_factory=list)
 
@@ -155,6 +166,25 @@ async def get_company_profile(
     return profile
 
 
+@router.patch("/{company_id}", response_model=Dict[str, Any])
+async def update_company_profile(
+    company_id: str,
+    payload: UpdateCompanyRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    service = CompanyService(db)
+    try:
+        updated = await service.update_company(
+            company_id=company_id,
+            owner_user_id=current_user["id"],
+            updates=payload.model_dump(exclude_none=True),
+        )
+        return updated
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.get("/{company_id}/search-history", response_model=List[Dict[str, Any]])
 async def get_company_search_history(
     company_id: str,
@@ -178,6 +208,13 @@ async def get_company_matches(
     min_score: float = 0.8,
     page: int = 1,
     limit: int = 10,
+    state: Optional[str] = None,
+    city: Optional[str] = None,
+    certification: Optional[str] = None,
+    portal: Optional[str] = None,
+    procurement: Optional[str] = None,
+    organisation: Optional[str] = None,
+    amount_range: Optional[str] = None,
     db: AsyncIOMotorDatabase = Depends(get_db),
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
@@ -192,6 +229,13 @@ async def get_company_matches(
             min_score=min_score,
             page=page,
             limit=limit,
+            state=state,
+            city=city,
+            certification=certification,
+            portal=portal,
+            procurement=procurement,
+            organisation=organisation,
+            amount_range=amount_range,
         )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

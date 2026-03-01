@@ -106,7 +106,7 @@ const UserDetailModal = ({ user, onClose }: { user: AdminUser; onClose: () => vo
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
       <div className="bg-white rounded-2xl w-full max-w-lg mx-4 shadow-xl">
         {/* Modal header */}
         <div className="flex items-center justify-between px-6 pt-5 pb-5">

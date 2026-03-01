@@ -15,10 +15,16 @@ export const setToken = (token: string) => {
   localStorage.setItem(TOKEN_KEY, token);
 };
 
-export const clearAuth = () => {
+export type AuthClearReason = "manual" | "session-expired" | "unknown";
+
+export const clearAuth = (reason: AuthClearReason = "unknown") => {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
   localStorage.removeItem(COMPANY_KEY);
+
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("ta:auth:cleared", { detail: { reason } }));
+  }
 };
 
 export const getUser = (): AuthUser | null => {

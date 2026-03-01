@@ -75,9 +75,17 @@ export const fetchCompanyProfile = async (companyId: string) => {
   return data;
 };
 
-export const fetchDashboardStats = async (companyId?: string) => {
+export const updateCompanyProfile = async (
+  companyId: string,
+  updates: Partial<Pick<CompanyProfile, "name" | "company_url" | "experience_years" | "turnover" | "description" | "interest_tags" | "interested_states" | "tender_topics">>
+) => {
+  const { data } = await api.patch<CompanyProfile>(`/companies/${companyId}`, updates);
+  return data;
+};
+
+export const fetchDashboardStats = async (companyId?: string, overviewRange = "7d") => {
   const { data } = await api.get<DashboardStats>("/dashboard/stats", {
-    params: { company_id: companyId },
+    params: { company_id: companyId, overview_range: overviewRange },
   });
   return data;
 };
@@ -103,6 +111,13 @@ export const fetchCompanyMatches = async (
     min_score?: number;
     page?: number;
     limit?: number;
+    state?: string;
+    city?: string;
+    certification?: string;
+    portal?: string;
+    procurement?: string;
+    organisation?: string;
+    amount_range?: string;
   }
 ) => {
   const { data } = await api.get<{ items: MatchItem[]; page: number; limit: number; total: number }>(
@@ -156,4 +171,34 @@ export const shareTenderByEmail = async (
 export const downloadTenderUrl = (tenderId: string) => {
   const baseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
   return `${baseUrl}/tenders/${tenderId}/download`;
+};
+
+const getFilenameFromContentDisposition = (value?: string) => {
+  if (!value) return null;
+  const utfMatch = /filename\*=UTF-8''([^;]+)/i.exec(value);
+  if (utfMatch?.[1]) {
+    try {
+      return decodeURIComponent(utfMatch[1]);
+    } catch {
+      return utfMatch[1];
+    }
+  }
+  const match = /filename="([^"]+)"/i.exec(value) || /filename=([^;]+)/i.exec(value);
+  return match?.[1]?.trim().replace(/^"|"$/g, "") ?? null;
+};
+
+export const downloadTenderFile = async (tenderId: string) => {
+  const response = await api.get(`/tenders/${tenderId}/download`, { responseType: "blob" });
+  const contentType = response.headers?.["content-type"] || "application/pdf";
+  const filename =
+    getFilenameFromContentDisposition(response.headers?.["content-disposition"]) || `tender-${tenderId}.pdf`;
+  const blob = new Blob([response.data], { type: contentType });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
 };
