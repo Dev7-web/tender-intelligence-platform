@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { Eye, EyeOff } from "lucide-react";
 import { isAxiosError } from "axios";
 
 import AuthShell from "@/components/layout/AuthShell";
@@ -23,6 +24,8 @@ const AuthPage = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const { pushToast } = useToastSimple();
@@ -144,37 +147,57 @@ const AuthPage = () => {
 
           <div>
             <label className="mb-2 block text-sm font-medium text-[#232836]">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="Enter password"
-              className="h-12 w-full rounded-md border border-[#e0e3eb] bg-[#eef0f4] px-3 text-base"
-              autoComplete={mode === "signup" ? "new-password" : "current-password"}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  handleSubmit();
-                }
-              }}
-            />
-          </div>
-
-          {mode === "signup" ? (
-            <div>
-              <label className="mb-2 block text-sm font-medium text-[#232836]">Confirm password</label>
+            <div className="relative">
               <input
-                type="password"
-                value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
-                placeholder="Re-enter password"
-                className="h-12 w-full rounded-md border border-[#e0e3eb] bg-[#eef0f4] px-3 text-base"
-                autoComplete="new-password"
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="Enter password"
+                className="h-12 w-full rounded-md border border-[#e0e3eb] bg-[#eef0f4] px-3 pr-10 text-base"
+                autoComplete={mode === "signup" ? "new-password" : "current-password"}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
                     handleSubmit();
                   }
                 }}
               />
+              <button
+                type="button"
+                tabIndex={-1}
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9CA3AF] hover:text-[#6B7280]"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+
+          {mode === "signup" ? (
+            <div>
+              <label className="mb-2 block text-sm font-medium text-[#232836]">Confirm password</label>
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  placeholder="Re-enter password"
+                  className="h-12 w-full rounded-md border border-[#e0e3eb] bg-[#eef0f4] px-3 pr-10 text-base"
+                  autoComplete="new-password"
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      handleSubmit();
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  onClick={() => setShowConfirmPassword((v) => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#9CA3AF] hover:text-[#6B7280]"
+                >
+                  {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
             </div>
           ) : null}
 
@@ -213,6 +236,15 @@ const AuthPage = () => {
 
         <div className="mt-2 text-center text-xs text-[#8a90a4]">
           Google login requires backend OAuth configuration before it can be used in production.
+        </div>
+
+        <div className="mt-6 border-t border-[#e8eaf0] pt-4 text-center">
+          <Link
+            to="/admin/login"
+            className="text-xs text-[#4040E0] hover:text-[#2f2fbc] transition-colors"
+          >
+            Login as Admin
+          </Link>
         </div>
       </div>
     </AuthShell>

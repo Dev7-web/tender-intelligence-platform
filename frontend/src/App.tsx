@@ -2,7 +2,10 @@ import { Navigate, Route, Routes } from "react-router-dom";
 
 import AppShell from "@/components/layout/AppShell";
 import ProtectedRoute from "@/components/layout/ProtectedRoute";
+import AdminProtectedRoute from "@/components/layout/AdminProtectedRoute";
+import AdminLayout from "@/components/layout/AdminLayout";
 import AuthPage from "@/pages/AuthPage";
+import AdminLoginPage from "@/pages/AdminLoginPage";
 import DashboardPage from "@/pages/DashboardPage";
 import HelpPage from "@/pages/HelpPage";
 import LoadingPage from "@/pages/LoadingPage";
@@ -13,6 +16,8 @@ import TendersPage from "@/pages/TendersPage";
 import CompanyDetails from "@/pages/onboarding/CompanyDetails";
 import SelectInterests from "@/pages/onboarding/SelectInterests";
 import UploadDocuments from "@/pages/onboarding/UploadDocuments";
+import AdminDashboard from "@/pages/Dashboard";
+import ManageUsers from "@/pages/ManageUsers";
 
 const App = () => {
   return (
@@ -72,6 +77,16 @@ const App = () => {
             </AppShell>
           }
         />
+      </Route>
+
+      {/* Admin routes */}
+      <Route path="/admin/login" element={<AdminLoginPage />} />
+      <Route element={<AdminProtectedRoute />}>
+        <Route element={<AdminLayout />}>
+          <Route path="/admin/dashboard" element={<AdminDashboard />} />
+          <Route path="/admin/users" element={<ManageUsers />} />
+          <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
+        </Route>
       </Route>
 
       <Route path="/" element={<Navigate to="/auth" replace />} />

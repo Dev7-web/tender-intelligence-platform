@@ -7,9 +7,9 @@ const AuthShell = ({ children }: PropsWithChildren) => {
     <div className="relative min-h-screen overflow-hidden bg-[#f1f2f6]">
       <div className="absolute right-0 top-0 h-24 w-36 rounded-bl-2xl bg-[#4040E0]" />
       <div className="absolute bottom-0 left-0 h-28 w-56 rounded-tr-2xl bg-[#4040E0]" />
-      <div className="absolute bottom-10 right-12 grid grid-cols-10 gap-2 opacity-60">
-        {Array.from({ length: 90 }).map((_, idx) => (
-          <div key={idx} className="h-1 w-1 rounded-full bg-[#7c85ff]" />
+      <div className="absolute bottom-6 right-8 grid gap-2.5 opacity-40" style={{ gridTemplateColumns: "repeat(16, minmax(0, 1fr))" }}>
+        {Array.from({ length: 256 }).map((_, idx) => (
+          <div key={idx} className="h-1.5 w-1.5 rounded-full bg-[#7c85ff]" />
         ))}
       </div>
 

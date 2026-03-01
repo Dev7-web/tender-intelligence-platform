@@ -73,8 +73,11 @@ const TendersPage = () => {
               className="h-10 rounded border border-[#d3d7e2] bg-white px-3 text-sm"
             >
               <option value="latest">Latest</option>
-              <option value="7d">7 Days</option>
-              <option value="30d">30 Days</option>
+              <option value="7d">Last 7 Days</option>
+              <option value="30d">Last 30 Days</option>
+              <option value="90d">Last 3 Months</option>
+              <option value="180d">Last 6 Months</option>
+              <option value="365d">Last 1 Year</option>
             </select>
           </div>
           <div>
@@ -85,7 +88,12 @@ const TendersPage = () => {
               className="h-10 rounded border border-[#d3d7e2] bg-white px-3 text-sm"
             >
               <option value="best_match">Best Match (&gt;80%)</option>
-              <option value="latest">Latest</option>
+              <option value="latest">Newest First</option>
+              <option value="oldest">Oldest First</option>
+              <option value="deadline_asc">Deadline: Soonest</option>
+              <option value="deadline_desc">Deadline: Latest</option>
+              <option value="value_desc">Value: High to Low</option>
+              <option value="value_asc">Value: Low to High</option>
             </select>
           </div>
         </div>

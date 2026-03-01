@@ -74,7 +74,7 @@ const SelectInterests = () => {
         <h2 className="mt-4 text-3xl font-semibold text-[#232836] md:text-4xl">What fields are you interested in?</h2>
         <p className="text-sm text-[#7b8298]">Select tags to specify your interests</p>
 
-        <div className="mt-6 flex flex-wrap gap-2">
+        <div className="mt-6 flex flex-wrap gap-3">
           {TAGS.map((tag) => {
             const isSelected = selected.includes(tag);
             return (
@@ -82,7 +82,7 @@ const SelectInterests = () => {
                 key={tag}
                 onClick={() => toggleTag(tag)}
                 className={[
-                  "rounded-md border px-3 py-1.5 text-xs",
+                  "rounded-md border px-4 py-2 text-xs",
                   isSelected
                     ? "border-[#4040E0] bg-[#eef0ff] text-[#4040E0]"
                     : "border-[#d6dae5] bg-[#f8f9fc] text-[#5d657b]",
