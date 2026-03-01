@@ -208,7 +208,16 @@ const UploadDocuments = () => {
                     </div>
                   </div>
                   {item.status === "done" ? (
-                    <Check className="text-green-600" size={18} />
+                    <div className="flex items-center gap-2">
+                      <Check className="text-green-600" size={18} />
+                      <button
+                        onClick={() => removeItem(item)}
+                        title="Remove file"
+                        className="flex h-6 w-6 items-center justify-center rounded-full hover:bg-[#F3F4F6]"
+                      >
+                        <X size={14} className="text-[#9CA3AF] hover:text-[#EF4444]" />
+                      </button>
+                    </div>
                   ) : (
                     <button onClick={() => removeItem(item)}>
                       <X size={16} className="text-[#626a80]" />
