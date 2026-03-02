@@ -22,17 +22,17 @@ const TendersPage = () => {
   const [search, setSearch] = useState("");
   const [keywordDraft, setKeywordDraft] = useState("");
   const [keywords, setKeywords] = useState<string[]>([]);
-  const [stateFilter, setStateFilter] = useState("");
-  const [cityFilter, setCityFilter] = useState("");
-  const [certificationFilter, setCertificationFilter] = useState("");
+  const [states, setStates] = useState<string[]>([]);
+  const [stateDraft, setStateDraft] = useState("");
+  const [cities, setCities] = useState<string[]>([]);
+  const [cityDraft, setCityDraft] = useState("");
+  const [certifications, setCertifications] = useState<string[]>([]);
+  const [certDraft, setCertDraft] = useState("");
+  const [organisations, setOrganisations] = useState<string[]>([]);
+  const [orgDraft, setOrgDraft] = useState("");
   const [portalFilter, setPortalFilter] = useState("");
   const [procurementFilter, setProcurementFilter] = useState("");
-  const [organisationFilter, setOrganisationFilter] = useState("");
   const [amountFilter, setAmountFilter] = useState("");
-  const [debouncedState, setDebouncedState] = useState("");
-  const [debouncedCity, setDebouncedCity] = useState("");
-  const [debouncedCert, setDebouncedCert] = useState("");
-  const [debouncedOrg, setDebouncedOrg] = useState("");
   const [sort, setSort] = useState("best_match");
   const [page, setPage] = useState(1);
   const [selectedShareTenderId, setSelectedShareTenderId] = useState<string | null>(null);
@@ -48,16 +48,14 @@ const TendersPage = () => {
     portal: true,
   });
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedState(stateFilter);
-      setDebouncedCity(cityFilter);
-      setDebouncedCert(certificationFilter);
-      setDebouncedOrg(organisationFilter);
+  const addTag = (list: string[], setList: React.Dispatch<React.SetStateAction<string[]>>, value: string) => {
+    const cleaned = value.trim();
+    if (!cleaned) return;
+    if (!list.some((v) => v.toLowerCase() === cleaned.toLowerCase())) {
+      setList((prev) => [...prev, cleaned]);
       setPage(1);
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [stateFilter, cityFilter, certificationFilter, organisationFilter]);
+    }
+  };
 
   const searchQuery = useMemo(() => {
     const parts = [search.trim(), ...keywords].map((item) => item.trim()).filter(Boolean);
@@ -72,15 +70,15 @@ const TendersPage = () => {
       min_score: 0.8,
       page,
       limit: 6,
-      state: debouncedState || undefined,
-      city: debouncedCity || undefined,
-      certification: debouncedCert || undefined,
+      state: states.length ? states.join(",") : undefined,
+      city: cities.length ? cities.join(",") : undefined,
+      certification: certifications.length ? certifications.join(",") : undefined,
       portal: portalFilter || undefined,
       procurement: procurementFilter || undefined,
-      organisation: debouncedOrg || undefined,
+      organisation: organisations.length ? organisations.join(",") : undefined,
       amount_range: amountFilter || undefined,
     }),
-    [searchQuery, sort, page, debouncedState, debouncedCity, debouncedCert, portalFilter, procurementFilter, debouncedOrg, amountFilter]
+    [searchQuery, sort, page, states, cities, certifications, portalFilter, procurementFilter, organisations, amountFilter]
   );
 
   const { data, isLoading } = useQuery({
@@ -142,17 +140,17 @@ const TendersPage = () => {
     setSearch("");
     setKeywordDraft("");
     setKeywords([]);
-    setStateFilter("");
-    setCityFilter("");
-    setCertificationFilter("");
+    setStates([]);
+    setStateDraft("");
+    setCities([]);
+    setCityDraft("");
+    setCertifications([]);
+    setCertDraft("");
+    setOrganisations([]);
+    setOrgDraft("");
     setPortalFilter("");
     setProcurementFilter("");
-    setOrganisationFilter("");
     setAmountFilter("");
-    setDebouncedState("");
-    setDebouncedCity("");
-    setDebouncedCert("");
-    setDebouncedOrg("");
     setPage(1);
   };
 
@@ -163,7 +161,7 @@ const TendersPage = () => {
   const filterRowClass = "border-t border-[#e6e9f1] px-4 py-3";
 
   return (
-    <div className="min-h-screen bg-[#f4f6fb]">
+    <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-baseline gap-2">
           <h1 className="text-[22px] font-semibold text-[#1f2533] md:text-[28px]">Current Active Tenders</h1>
@@ -213,7 +211,7 @@ const TendersPage = () => {
         </div>
 
       <div className="grid gap-5 xl:grid-cols-[250px_minmax(0,1fr)]">
-        <aside className="self-start rounded-xl border border-[#dfe3ee] bg-white">
+        <aside className="sticky top-4 self-start overflow-y-auto max-h-[calc(100vh-6rem)] rounded-xl border border-[#dfe3ee] bg-white">
           <div className="flex items-center justify-between px-4 py-3">
             <h2 className="text-base font-semibold text-[#283043]">Filters</h2>
             <button onClick={clearAllFilters} className="text-xs text-[#4d55e0]">
@@ -270,12 +268,25 @@ const TendersPage = () => {
               <ChevronDown size={16} className={openSections.state ? "rotate-180" : ""} />
             </button>
             {openSections.state ? (
-              <input
-                value={stateFilter}
-                onChange={(event) => setStateFilter(event.target.value)}
-                placeholder="e.g. Gujarat"
-                className="mt-2 h-9 w-full rounded-md border border-[#d6dbe8] px-2 text-sm"
-              />
+              <>
+                <input
+                  value={stateDraft}
+                  onChange={(event) => setStateDraft(event.target.value)}
+                  onKeyDown={(event) => { if (event.key === "Enter") { addTag(states, setStates, stateDraft); setStateDraft(""); } }}
+                  placeholder="e.g. Gujarat"
+                  className="mt-2 h-9 w-full rounded-md border border-[#d6dbe8] px-2 text-sm"
+                />
+                {states.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {states.map((s) => (
+                      <span key={s} className="inline-flex items-center gap-1 rounded-full border border-[#d4d9e8] bg-[#f3f5fb] px-2 py-0.5 text-xs">
+                        {s}
+                        <button onClick={() => setStates((prev) => prev.filter((v) => v !== s))} className="text-[#8a90a4]"><X size={12} /></button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </>
             ) : null}
           </div>
 
@@ -285,12 +296,25 @@ const TendersPage = () => {
               <ChevronDown size={16} className={openSections.city ? "rotate-180" : ""} />
             </button>
             {openSections.city ? (
-              <input
-                value={cityFilter}
-                onChange={(event) => setCityFilter(event.target.value)}
-                placeholder="e.g. Jaipur"
-                className="mt-2 h-9 w-full rounded-md border border-[#d6dbe8] px-2 text-sm"
-              />
+              <>
+                <input
+                  value={cityDraft}
+                  onChange={(event) => setCityDraft(event.target.value)}
+                  onKeyDown={(event) => { if (event.key === "Enter") { addTag(cities, setCities, cityDraft); setCityDraft(""); } }}
+                  placeholder="e.g. Jaipur"
+                  className="mt-2 h-9 w-full rounded-md border border-[#d6dbe8] px-2 text-sm"
+                />
+                {cities.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {cities.map((c) => (
+                      <span key={c} className="inline-flex items-center gap-1 rounded-full border border-[#d4d9e8] bg-[#f3f5fb] px-2 py-0.5 text-xs">
+                        {c}
+                        <button onClick={() => setCities((prev) => prev.filter((v) => v !== c))} className="text-[#8a90a4]"><X size={12} /></button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </>
             ) : null}
           </div>
 
@@ -300,12 +324,25 @@ const TendersPage = () => {
               <ChevronDown size={16} className={openSections.certification ? "rotate-180" : ""} />
             </button>
             {openSections.certification ? (
-              <input
-                value={certificationFilter}
-                onChange={(event) => setCertificationFilter(event.target.value)}
-                placeholder="e.g. ISO"
-                className="mt-2 h-9 w-full rounded-md border border-[#d6dbe8] px-2 text-sm"
-              />
+              <>
+                <input
+                  value={certDraft}
+                  onChange={(event) => setCertDraft(event.target.value)}
+                  onKeyDown={(event) => { if (event.key === "Enter") { addTag(certifications, setCertifications, certDraft); setCertDraft(""); } }}
+                  placeholder="e.g. ISO"
+                  className="mt-2 h-9 w-full rounded-md border border-[#d6dbe8] px-2 text-sm"
+                />
+                {certifications.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {certifications.map((c) => (
+                      <span key={c} className="inline-flex items-center gap-1 rounded-full border border-[#d4d9e8] bg-[#f3f5fb] px-2 py-0.5 text-xs">
+                        {c}
+                        <button onClick={() => setCertifications((prev) => prev.filter((v) => v !== c))} className="text-[#8a90a4]"><X size={12} /></button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </>
             ) : null}
           </div>
 
@@ -334,12 +371,25 @@ const TendersPage = () => {
               <ChevronDown size={16} className={openSections.organisation ? "rotate-180" : ""} />
             </button>
             {openSections.organisation ? (
-              <input
-                value={organisationFilter}
-                onChange={(event) => setOrganisationFilter(event.target.value)}
-                placeholder="e.g. Ministry of Defence"
-                className="mt-2 h-9 w-full rounded-md border border-[#d6dbe8] px-2 text-sm"
-              />
+              <>
+                <input
+                  value={orgDraft}
+                  onChange={(event) => setOrgDraft(event.target.value)}
+                  onKeyDown={(event) => { if (event.key === "Enter") { addTag(organisations, setOrganisations, orgDraft); setOrgDraft(""); } }}
+                  placeholder="e.g. Ministry of Defence"
+                  className="mt-2 h-9 w-full rounded-md border border-[#d6dbe8] px-2 text-sm"
+                />
+                {organisations.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {organisations.map((o) => (
+                      <span key={o} className="inline-flex items-center gap-1 rounded-full border border-[#d4d9e8] bg-[#f3f5fb] px-2 py-0.5 text-xs">
+                        {o}
+                        <button onClick={() => setOrganisations((prev) => prev.filter((v) => v !== o))} className="text-[#8a90a4]"><X size={12} /></button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </>
             ) : null}
           </div>
 
@@ -384,7 +434,7 @@ const TendersPage = () => {
         </aside>
 
         <section className="min-w-0">
-          <div className="mb-4 flex items-center gap-2">
+          <div className="relative mb-4">
             <input
               value={searchDraft}
               onChange={(event) => {
@@ -401,10 +451,10 @@ const TendersPage = () => {
                 }
               }}
               placeholder="Search tender"
-              className="h-11 flex-1 rounded-full border border-[#d5d9e3] bg-white px-4 text-sm text-[#232937]"
+              className="h-11 w-full rounded-full border border-[#d5d9e3] bg-white pl-4 pr-12 text-sm text-[#232937]"
             />
-            <button onClick={handleSearch} className="flex h-10 w-10 items-center justify-center rounded-full">
-              <img src={sendIcon} alt="" className="h-10 w-10" />
+            <button onClick={handleSearch} className="absolute right-1 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full">
+              <img src={sendIcon} alt="" className="h-9 w-9" />
             </button>
           </div>
 
@@ -416,7 +466,7 @@ const TendersPage = () => {
             </div>
           ) : null}
 
-          <div className="space-y-3">
+          <div className="space-y-5">
             {items.map((item) => (
               <TenderMatchCard
                 key={item.tender.id}

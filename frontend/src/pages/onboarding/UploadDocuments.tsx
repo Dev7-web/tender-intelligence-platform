@@ -17,6 +17,70 @@ interface UploadItem {
   fileHash?: string;
 }
 
+const EXT_COLORS: Record<string, { color: string; label: string }> = {
+  pdf:  { color: "#EF4444", label: "PDF" },
+  doc:  { color: "#3B82F6", label: "DOC" },
+  docx: { color: "#3B82F6", label: "DOCX" },
+  ppt:  { color: "#F97316", label: "PPT" },
+  pptx: { color: "#F97316", label: "PPTX" },
+  txt:  { color: "#6366F1", label: "TXT" },
+  md:   { color: "#22C55E", label: "MD" },
+  png:  { color: "#7C3AED", label: "PNG" },
+  jpg:  { color: "#10B981", label: "JPG" },
+  jpeg: { color: "#10B981", label: "JPEG" },
+  gif:  { color: "#EAB308", label: "GIF" },
+};
+
+const FileTypeIcon = ({ filename }: { filename: string }) => {
+  const ext = filename.split(".").pop()?.toLowerCase() ?? "";
+  const { color, label } = EXT_COLORS[ext] ?? {
+    color: "#9CA3AF",
+    label: ext.toUpperCase().slice(0, 4) || "FILE",
+  };
+
+  return (
+    <svg
+      width="36"
+      height="44"
+      viewBox="0 0 36 44"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className="flex-shrink-0"
+    >
+      {/* Document body */}
+      <path
+        d="M0 4C0 1.79 1.79 0 4 0H22L36 14V40C36 42.21 34.21 44 32 44H4C1.79 44 0 42.21 0 40V4Z"
+        fill="#F8FAFC"
+        stroke="#E2E8F0"
+        strokeWidth="1"
+      />
+      {/* Folded corner */}
+      <path
+        d="M22 0L36 14H25C23.34 14 22 12.66 22 11V0Z"
+        fill="#E2E8F0"
+      />
+      {/* Content lines */}
+      <rect x="6" y="20" width="14" height="1.5" rx="0.75" fill="#CBD5E1" />
+      <rect x="6" y="24" width="20" height="1.5" rx="0.75" fill="#CBD5E1" />
+      <rect x="6" y="28" width="16" height="1.5" rx="0.75" fill="#CBD5E1" />
+      {/* Extension badge */}
+      <rect x="3" y="34" width="30" height="8" rx="3" fill={color} />
+      <text
+        x="18"
+        y="40.5"
+        textAnchor="middle"
+        fill="white"
+        fontSize="6.5"
+        fontWeight="700"
+        fontFamily="system-ui, -apple-system, sans-serif"
+        letterSpacing="0.3"
+      >
+        {label}
+      </text>
+    </svg>
+  );
+};
+
 const UploadDocuments = () => {
   const navigate = useNavigate();
   const { pushToast } = useToastSimple();
@@ -133,7 +197,7 @@ const UploadDocuments = () => {
             <div className="mt-2 space-y-4">
               {items.map((item) => (
                 <div key={item.localId} className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded border border-[#d8dce6] bg-white" />
+                  <FileTypeIcon filename={item.name} />
                   <div className="flex-1">
                     <div className="flex items-center justify-between">
                       <p className="text-sm text-[#252a39]">{item.name}</p>
@@ -144,7 +208,16 @@ const UploadDocuments = () => {
                     </div>
                   </div>
                   {item.status === "done" ? (
-                    <Check className="text-green-600" size={18} />
+                    <div className="flex items-center gap-2">
+                      <Check className="text-green-600" size={18} />
+                      <button
+                        onClick={() => removeItem(item)}
+                        title="Remove file"
+                        className="flex h-6 w-6 items-center justify-center rounded-full hover:bg-[#F3F4F6]"
+                      >
+                        <X size={14} className="text-[#9CA3AF] hover:text-[#EF4444]" />
+                      </button>
+                    </div>
                   ) : (
                     <button onClick={() => removeItem(item)}>
                       <X size={16} className="text-[#626a80]" />

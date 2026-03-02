@@ -13,7 +13,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 
 from app.api.routes import auth, companies, search, tenders
-from app.api.routes import dashboard, jobs, websocket
+from app.api.routes import dashboard, jobs, websocket, admin
 from app.config import settings
 from app.database.mongodb import create_indexes, close_client
 from app.jobs.scheduler import shutdown_scheduler, start_scheduler
@@ -37,6 +37,7 @@ app.include_router(search.router, prefix="/api/v1")
 app.include_router(dashboard.router, prefix="/api/v1")
 app.include_router(jobs.router, prefix="/api/v1")
 app.include_router(auth.router, prefix="/api/v1")
+app.include_router(admin.router, prefix="/api/v1")
 app.include_router(websocket.router)
 
 

@@ -9,7 +9,7 @@ import { useToastSimple } from "@/components/ui/toaster-simple";
 
 const navItems = [
   { label: "Dashboard", to: "/dashboard" },
-  { label: "Finding Tenders", to: "/tenders" },
+  { label: "Tenders", to: "/tenders" },
   { label: "My List", to: "/my-list" },
   { label: "My Organization", to: "/organization" },
   { label: "Help", to: "/help" },
@@ -82,8 +82,10 @@ const AppShell = ({ children }: PropsWithChildren) => {
                 to={item.to}
                 className={({ isActive }) =>
                   [
-                    "rounded-md px-2 py-1 transition",
-                    isActive ? "bg-[#eef0ff] text-[#4040E0]" : "hover:text-[#4040E0]",
+                    "whitespace-nowrap rounded-md px-3 py-1.5 font-medium transition",
+                    isActive
+                      ? "bg-[#eef0ff] text-[#4040E0]"
+                      : "text-[#4f5565] hover:bg-[#f4f5fb] hover:text-[#4040E0]",
                   ].join(" ")
                 }
               >
@@ -137,9 +139,29 @@ const AppShell = ({ children }: PropsWithChildren) => {
             </div>
           </div>
         </div>
+
+        {/* Mobile nav */}
+        <div className="flex items-center gap-1 overflow-x-auto px-4 pb-2 md:hidden">
+          {navItems.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={({ isActive }) =>
+                [
+                  "shrink-0 rounded-full px-3 py-1 text-xs font-medium transition",
+                  isActive
+                    ? "bg-[#4040E0] text-white"
+                    : "bg-[#f0f1f7] text-[#5f6577] hover:text-[#4040E0]",
+                ].join(" ")
+              }
+            >
+              {item.label}
+            </NavLink>
+          ))}
+        </div>
       </header>
 
-      <main className="mx-auto max-w-[1280px] px-8 py-7">{children}</main>
+      <main className="mx-auto max-w-[1280px] px-4 py-6 sm:px-8 sm:py-7">{children}</main>
     </div>
   );
 };

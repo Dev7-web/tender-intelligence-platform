@@ -99,6 +99,9 @@ class Settings(BaseSettings):
     # AI chat
     AI_RATE_LIMIT_PER_MIN: int = 20
 
+    # Admin panel
+    ADMIN_API_KEY: str = "tender-admin-secret"
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

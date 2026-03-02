@@ -430,9 +430,16 @@ const OrganizationPage = () => {
                         </div>
                         {/* status / actions */}
                         {item.status === "done" ? (
-                          <button onClick={() => removeFile(item)} title="Remove">
+                          <div className="flex items-center gap-2">
                             <Check className="text-green-600" size={18} />
-                          </button>
+                            <button
+                              onClick={() => removeFile(item)}
+                              title="Remove file"
+                              className="flex h-6 w-6 items-center justify-center rounded-full hover:bg-[#F3F4F6]"
+                            >
+                              <X size={14} className="text-[#9CA3AF] hover:text-[#EF4444]" />
+                            </button>
+                          </div>
                         ) : (
                           <button onClick={() => removeFile(item)} title="Cancel">
                             <X size={16} className="text-[#626a80]" />

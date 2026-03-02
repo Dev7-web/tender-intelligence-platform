@@ -153,35 +153,42 @@ const LoadingPage = () => {
     );
   }
 
-  const circumference = 2 * Math.PI * 70;
+  const circumference = 2 * Math.PI * 102;
   const stroke = circumference - (progress / 100) * circumference;
 
   return (
     <AuthShell>
       <div className="w-full max-w-[860px] rounded-2xl border border-[#dbdee8] bg-[#f5f6f9] p-7 text-center shadow-sm">
-        <div className="mx-auto mt-8 w-[180px]">
-          <svg width="180" height="180">
-            <circle cx="90" cy="90" r="70" stroke="#d7dbe6" strokeWidth="8" fill="none" />
+        <div className="mx-auto mt-8 w-[238px]">
+          <svg width="238" height="238" viewBox="0 0 238 238">
+            <circle cx="119" cy="119" r="102" stroke="#d7dbe6" strokeWidth="14" fill="none" />
             <circle
-              cx="90"
-              cy="90"
-              r="70"
+              cx="119"
+              cy="119"
+              r="102"
               stroke="#4040E0"
-              strokeWidth="8"
+              strokeWidth="14"
               fill="none"
               strokeLinecap="round"
               strokeDasharray={circumference}
               strokeDashoffset={stroke}
-              transform="rotate(-90 90 90)"
+              transform="rotate(-90 119 119)"
             />
-            <text x="90" y="98" textAnchor="middle" className="fill-[#2a3040] text-[28px] font-semibold">
+            <text
+              x="119"
+              y="133"
+              textAnchor="middle"
+              fill="#2a3040"
+              fontSize="42"
+              fontWeight="600"
+              fontFamily="system-ui, -apple-system, sans-serif"
+            >
               {progress}%
             </text>
           </svg>
         </div>
-        <p className="mx-auto mt-5 max-w-[580px] text-xl leading-snug text-[#3d4457] md:text-3xl">
+        <p className="mx-auto mt-6 max-w-[560px] text-[22px] font-medium leading-relaxed text-[#323743]">
           Analyzing company profile and identifying relevant tenders.
-          <br />
           Please allow some time for this process.
         </p>
       </div>

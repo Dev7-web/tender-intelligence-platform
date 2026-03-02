@@ -95,8 +95,8 @@ const DashboardPage = () => {
     <div>
       <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-semibold text-[#2a3040] md:text-4xl">Hello, [{stats?.company_name || "Company Name"}]</h1>
-          <p className="mt-1 text-base text-[#4d556c] md:text-xl">{todayText}</p>
+          <h1 className="text-2xl font-semibold text-[#4040E0] md:text-3xl">Hello, [{stats?.company_name || "Company Name"}]</h1>
+          <p className="mt-1 text-sm text-[#4d556c] md:text-base">{todayText}</p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -122,20 +122,20 @@ const DashboardPage = () => {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
         {cards.map((card) => (
-          <div key={card.title} className="rounded-xl border border-[#d8dce6] bg-white p-4">
-            <p className="text-xs tracking-[0.2em] text-[#8a92a7]">{card.title}</p>
+          <div key={card.title} className="rounded-[10px] border border-[#E4E4E7] bg-white px-5 py-4">
+            <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-[#8a92a7]">{card.title}</p>
             <div className="mt-1 flex items-end justify-between gap-3">
-              <p className="text-3xl font-semibold text-[#1f2533]">{card.value}</p>
+              <p className="text-[28px] font-semibold leading-tight text-[#1f2533]">{card.value}</p>
               <img src={card.icon} alt={card.iconAlt} className="h-9 w-9 shrink-0 object-contain md:h-10 md:w-10" />
             </div>
           </div>
         ))}
       </div>
 
-      <div className="mt-5 grid gap-4 xl:grid-cols-[1fr_320px]">
-        <div className="rounded-xl border border-[#d8dce6] bg-white px-5 py-5">
+      <div className="mt-5 grid gap-4 xl:grid-cols-[1fr_330px]">
+        <div className="rounded-[10px] border border-[#E4E4E7] bg-white px-5 py-5">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-[#262b38]">Tenders Report</h2>
             <div className="flex items-center gap-2">
@@ -219,7 +219,7 @@ const DashboardPage = () => {
           </div>
         </div>
 
-        <div className="rounded-xl border border-[#d8dce6] bg-white px-5 py-5">
+        <div className="rounded-[10px] border border-[#E4E4E7] bg-white px-5 py-5">
           <div className="mb-5 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-[#262b38]">Tenders Overview</h2>
             <select
