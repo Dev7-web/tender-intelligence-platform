@@ -19,6 +19,7 @@ venv/
 credentials.json
 secrets.json
 service-account*.json
+firebase-service-account.json
 
 # Testing / linting
 .pytest_cache/

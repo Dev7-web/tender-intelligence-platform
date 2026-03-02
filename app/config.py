@@ -74,6 +74,7 @@ class Settings(BaseSettings):
     JWT_REFRESH_EXPIRES_DAYS: int = 30
     OTP_EXPIRES_MIN: int = 10
     DEV_OTP_CODE: str = "123456"
+    FIREBASE_SERVICE_ACCOUNT_PATH: str = ""
 
     # Email
     EMAIL_PROVIDER: str = "smtp"

@@ -1,11 +1,22 @@
 import axios from "axios";
 
+import { getIdToken } from "@/lib/firebaseAuth";
+
 const BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
 const ADMIN_KEY = import.meta.env.VITE_ADMIN_API_KEY || "tender-admin-secret";
 
 const client = axios.create({
   baseURL: BASE,
   headers: { "x-admin-key": ADMIN_KEY },
+});
+
+client.interceptors.request.use(async (config) => {
+  const token = await getIdToken();
+  if (token) {
+    config.headers = config.headers || {};
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
 });
 
 export type AdminStats = {

@@ -2,17 +2,31 @@ import { useEffect, useState } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 
 import { onAuthStateChanged, User } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { auth } from "@/firebase";
 
 const AdminProtectedRoute = () => {
   const [user, setUser] = useState<User | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [checking, setChecking] = useState(true);
   const location = useLocation();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
-      setChecking(false);
+      if (!firebaseUser) {
+        setIsAdmin(false);
+        setChecking(false);
+        return;
+      }
+
+      try {
+        const tokenResult = await firebaseUser.getIdTokenResult(true);
+        setIsAdmin(tokenResult.claims.admin === true);
+      } catch {
+        setIsAdmin(false);
+      } finally {
+        setChecking(false);
+      }
     });
     return unsubscribe;
   }, []);
@@ -25,7 +39,7 @@ const AdminProtectedRoute = () => {
     );
   }
 
-  if (!user) {
+  if (!user || !isAdmin) {
     return <Navigate to="/admin/login" replace state={{ from: location }} />;
   }
 

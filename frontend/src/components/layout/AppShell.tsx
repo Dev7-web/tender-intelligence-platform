@@ -5,6 +5,7 @@ import notificationIcon from "@/assets/dashboard/notification-icon.svg";
 import profileAvatar from "@/assets/dashboard/profile-avatar.svg";
 import BrandMark from "@/components/layout/BrandMark";
 import { clearAuth, getUser } from "@/lib/auth";
+import { signOutUser } from "@/lib/firebaseAuth";
 import { useToastSimple } from "@/components/ui/toaster-simple";
 
 const navItems = [
@@ -64,9 +65,13 @@ const AppShell = ({ children }: PropsWithChildren) => {
     };
   }, [navigate, pushToast]);
 
-  const handleSignOut = () => {
-    clearAuth("manual");
-    navigate("/auth");
+  const handleSignOut = async () => {
+    try {
+      await signOutUser();
+    } finally {
+      clearAuth("manual");
+      navigate("/auth");
+    }
   };
 
   return (

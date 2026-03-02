@@ -1,23 +1,42 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
-import { isAxiosError } from "axios";
 
 import AuthShell from "@/components/layout/AuthShell";
 import { useToastSimple } from "@/components/ui/toaster-simple";
-import { AuthUser, setToken, setUser } from "@/lib/auth";
-import { authSignIn, authSignUp } from "@/services/tenderAgentApi";
+import { setUser } from "@/lib/auth";
+import { signInEmail, signInGoogle, signUpEmail } from "@/lib/firebaseAuth";
+import { fetchMe } from "@/services/tenderAgentApi";
 
 type AuthMode = "signup" | "signin";
-
-type ApiErrorBody = {
-  detail?: string;
-  error?: { message?: string };
-};
 
 const EMAIL_RE = /^\S+@\S+\.\S+$/;
 const HAS_LETTER_RE = /[A-Za-z]/;
 const HAS_DIGIT_RE = /[0-9]/;
+
+const getFirebaseErrorMessage = (error: unknown) => {
+  const code = (error as { code?: string })?.code;
+  switch (code) {
+    case "auth/email-already-in-use":
+      return "Email already in use. Please sign in instead.";
+    case "auth/invalid-email":
+      return "Please enter a valid email.";
+    case "auth/weak-password":
+      return "Password is too weak.";
+    case "auth/user-not-found":
+    case "auth/wrong-password":
+    case "auth/invalid-credential":
+      return "Invalid email or password.";
+    case "auth/popup-closed-by-user":
+      return "Google sign-in was cancelled.";
+    case "auth/network-request-failed":
+      return "Network error. Please try again.";
+    case "auth/account-exists-with-different-credential":
+      return "This email is linked to another sign-in method.";
+    default:
+      return null;
+  }
+};
 
 const AuthPage = () => {
   const [mode, setMode] = useState<AuthMode>("signup");
@@ -30,26 +49,15 @@ const AuthPage = () => {
   const { pushToast } = useToastSimple();
   const navigate = useNavigate();
 
-  const getApiErrorMessage = (error: unknown): string | null => {
-    if (!isAxiosError<ApiErrorBody>(error)) return null;
-    if (typeof error.response?.data?.detail === "string") {
-      return error.response.data.detail;
-    }
-    if (typeof error.response?.data?.error?.message === "string") {
-      return error.response.data.error.message;
-    }
-    return null;
-  };
-
   const resetFields = () => {
     setPassword("");
     setConfirmPassword("");
   };
 
-  const completeLogin = (token: string, user: AuthUser) => {
-    setToken(token);
+  const completeLogin = async (message: string) => {
+    const user = await fetchMe();
     setUser(user);
-    pushToast(mode === "signup" ? "Account created successfully" : "Signed in successfully", "success");
+    pushToast(message, "success");
 
     if (user.company_id) {
       navigate("/dashboard");
@@ -80,15 +88,14 @@ const AuthPage = () => {
     setLoading(true);
     try {
       if (mode === "signup") {
-        const response = await authSignUp({ email: normalized, password });
-        completeLogin(response.token, response.user);
+        await signUpEmail(normalized, password);
       } else {
-        const response = await authSignIn({ email: normalized, password });
-        completeLogin(response.token, response.user);
+        await signInEmail(normalized, password);
       }
+      await completeLogin(mode === "signup" ? "Account created successfully" : "Signed in successfully");
     } catch (error: unknown) {
       pushToast(
-        getApiErrorMessage(error) || (mode === "signup" ? "Unable to create account" : "Unable to sign in"),
+        getFirebaseErrorMessage(error) || (mode === "signup" ? "Unable to create account" : "Unable to sign in"),
         "error"
       );
     } finally {
@@ -96,8 +103,17 @@ const AuthPage = () => {
     }
   };
 
-  // Google sign-in is intentionally disabled for now.
-  // We can re-enable `authGoogleStart` flow once OAuth is finalized.
+  const handleGoogleSignIn = async () => {
+    setLoading(true);
+    try {
+      await signInGoogle();
+      await completeLogin("Signed in with Google");
+    } catch (error: unknown) {
+      pushToast(getFirebaseErrorMessage(error) || "Unable to sign in with Google", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const toggleMode = () => {
     setMode((prev) => (prev === "signup" ? "signin" : "signup"));
@@ -198,9 +214,14 @@ const AuthPage = () => {
           {loading ? "Please wait..." : mode === "signup" ? "Sign Up" : "Sign In"}
         </button>
 
-        {/* <div className="mt-4 rounded-md border border-[#e2e5ef] bg-[#eef0f6] px-3 py-2 text-center text-xs text-[#7a8094]">
-          Continue with Google is temporarily disabled.
-        </div> */}
+        <button
+          type="button"
+          onClick={handleGoogleSignIn}
+          disabled={loading}
+          className="mt-4 h-12 w-full rounded-md border border-[#d9dce5] bg-white text-sm font-semibold text-[#232836] hover:bg-[#f4f5fb] disabled:opacity-60"
+        >
+          Continue with Google
+        </button>
 
         <p className="mt-8 text-center text-sm text-[#6d7487]">
           {mode === "signup" ? "Already have an account?" : "Need an account?"}{" "}

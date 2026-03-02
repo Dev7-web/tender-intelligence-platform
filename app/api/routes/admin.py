@@ -11,7 +11,7 @@ from bson import ObjectId
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.api.dependencies import get_db
+from app.api.dependencies import get_db, require_admin_user
 from app.config import settings
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -70,7 +70,7 @@ def _build_buckets(period: str):
     return labels, starts
 
 
-@router.get("/stats", dependencies=[Depends(_require_admin_key)])
+@router.get("/stats", dependencies=[Depends(_require_admin_key), Depends(require_admin_user)])
 async def admin_stats(db: AsyncIOMotorDatabase = Depends(get_db)) -> Dict[str, Any]:
     users_coll = db.get_collection("users")
     actions_coll = db.get_collection("tender_actions")
@@ -92,7 +92,7 @@ async def admin_stats(db: AsyncIOMotorDatabase = Depends(get_db)) -> Dict[str, A
     }
 
 
-@router.get("/tender-stats", dependencies=[Depends(_require_admin_key)])
+@router.get("/tender-stats", dependencies=[Depends(_require_admin_key), Depends(require_admin_user)])
 async def admin_tender_stats(
     period: str = Query("7d"),
     db: AsyncIOMotorDatabase = Depends(get_db),
@@ -121,7 +121,7 @@ async def admin_tender_stats(
     return {"period": period, "labels": labels, "applied": applied_series, "discarded": discarded_series}
 
 
-@router.get("/users", dependencies=[Depends(_require_admin_key)])
+@router.get("/users", dependencies=[Depends(_require_admin_key), Depends(require_admin_user)])
 async def list_users(
     skip: int = Query(0, ge=0),
     limit: int = Query(10, ge=1, le=100),
@@ -144,7 +144,7 @@ async def list_users(
     return {"total": total, "users": users}
 
 
-@router.get("/users/{user_id}", dependencies=[Depends(_require_admin_key)])
+@router.get("/users/{user_id}", dependencies=[Depends(_require_admin_key), Depends(require_admin_user)])
 async def get_user(user_id: str, db: AsyncIOMotorDatabase = Depends(get_db)) -> Dict[str, Any]:
     users_coll = db.get_collection("users")
     actions_coll = db.get_collection("tender_actions")
@@ -171,7 +171,7 @@ async def get_user(user_id: str, db: AsyncIOMotorDatabase = Depends(get_db)) -> 
     return user
 
 
-@router.put("/users/{user_id}/inactivate", dependencies=[Depends(_require_admin_key)])
+@router.put("/users/{user_id}/inactivate", dependencies=[Depends(_require_admin_key), Depends(require_admin_user)])
 async def toggle_user_status(user_id: str, db: AsyncIOMotorDatabase = Depends(get_db)) -> Dict[str, Any]:
     users_coll = db.get_collection("users")
 
@@ -191,7 +191,7 @@ async def toggle_user_status(user_id: str, db: AsyncIOMotorDatabase = Depends(ge
     return {"is_active": new_status}
 
 
-@router.delete("/users/{user_id}", dependencies=[Depends(_require_admin_key)])
+@router.delete("/users/{user_id}", dependencies=[Depends(_require_admin_key), Depends(require_admin_user)])
 async def delete_user(user_id: str, db: AsyncIOMotorDatabase = Depends(get_db)) -> Dict[str, Any]:
     users_coll = db.get_collection("users")
 

@@ -2,7 +2,9 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 
+import { auth } from "@/firebase";
 import { adminSignIn } from "@/lib/adminAuth";
+import { signOutUser } from "@/lib/firebaseAuth";
 
 const AdminLoginPage = () => {
   const [email, setEmail] = useState("");
@@ -22,6 +24,13 @@ const AdminLoginPage = () => {
     setLoading(true);
     try {
       await adminSignIn(email.trim().toLowerCase(), password);
+      const tokenResult = await auth.currentUser?.getIdTokenResult(true);
+      const isAdmin = tokenResult?.claims?.admin === true;
+      if (!isAdmin) {
+        await signOutUser();
+        setError("You do not have admin access.");
+        return;
+      }
       navigate("/admin/dashboard");
     } catch {
       setError("Invalid email or password.");
