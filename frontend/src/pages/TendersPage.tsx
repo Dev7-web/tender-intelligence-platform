@@ -106,7 +106,12 @@ const TendersPage = () => {
 
   const totalPages = Math.max(1, Math.ceil((data?.total || 0) / (data?.limit || 1)));
 
-  const sortLabel = sort === "latest" ? "Latest" : "Best Match (>80%)";
+  const sortLabel =
+    sort === "latest"
+      ? "Latest"
+      : sort === "closing_soon"
+        ? "Closing Soon"
+        : "Best Match (>80%)";
 
   useEffect(() => {
     if (!sortOpen) return;
@@ -186,6 +191,7 @@ const TendersPage = () => {
                 <div className="absolute right-0 z-10 mt-1 w-full overflow-hidden rounded-md border border-[#d8dce6] bg-white text-[12px] shadow-sm">
                   {[
                     { value: "best_match", label: "Best Match (>80%)" },
+                    { value: "closing_soon", label: "Closing Soon" },
                     { value: "latest", label: "Latest" },
                   ].map((option) => (
                     <button

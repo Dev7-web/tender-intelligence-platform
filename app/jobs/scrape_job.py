@@ -100,6 +100,15 @@ async def run_scrape_job() -> None:
                     message=f"Processed {index}/{total_bids} tenders",
                 )
 
+        # Mark any tenders whose deadline has passed as expired
+        await service.repo.collection.update_many(
+            {
+                "expired": False,
+                "scraped_info.end_date": {"$lt": utcnow()},
+            },
+            {"$set": {"expired": True}},
+        )
+
         await scrape_logs.update_one(
             {"job_id": job_id},
             {

@@ -39,7 +39,23 @@ class SearchService:
 
         query_embedding = self._get_query_embedding(profile, query)
 
-        candidate_filter = {"is_active": True, "expired": False}
+        now = datetime.now(timezone.utc)
+
+        # Flush stale expired flags before querying
+        await self.tender_repo.collection.update_many(
+            {
+                "expired": False,
+                "scraped_info.end_date": {"$lt": now},
+            },
+            {"$set": {"expired": True}},
+        )
+
+        candidate_filter: Dict[str, Any] = {
+            "is_active": True,
+            "expired": False,
+            # Real-time date gate: only tenders whose deadline is still in the future
+            "scraped_info.end_date": {"$gte": now},
+        }
         if filters:
             if filters.get("domains"):
                 candidate_filter["metadata.domains"] = {"$in": filters["domains"]}

@@ -7,6 +7,7 @@ from __future__ import annotations
 import os
 from typing import List
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -102,6 +103,17 @@ class Settings(BaseSettings):
 
     # Admin panel
     ADMIN_API_KEY: str = "tender-admin-secret"
+
+    @field_validator("DEBUG", mode="before")
+    @classmethod
+    def normalize_debug(cls, value: object) -> object:
+        if isinstance(value, str):
+            lowered = value.strip().lower()
+            if lowered in {"release", "production"}:
+                return False
+            if lowered in {"debug", "development"}:
+                return True
+        return value
 
     class Config:
         env_file = ".env"

@@ -240,20 +240,59 @@ class LLMExtractor:
         return self._merge_metadata(metadata_list)
 
     def _generate(self, prompt: str) -> str:
-        if self.provider == "gemini":
-            response = self._model.generate_content(prompt)
-            return response.text
-
-        payload = {"model": settings.LLM_MODEL, "prompt": prompt, "stream": False}
-        url = settings.LLM_BASE_URL.rstrip("/") + "/api/generate"
-        headers = {"Content-Type": "text/plain"}
-        response = self._client.post(url, content=json.dumps(payload), headers=headers)
-        response.raise_for_status()
         try:
-            data = response.json()
-            return data.get("response") or data.get("text") or response.text
-        except json.JSONDecodeError:
-            return response.text
+            if self.provider == "gemini":
+                response = self._model.generate_content(prompt)
+                return response.text
+
+            payload = {"model": settings.LLM_MODEL, "prompt": prompt, "stream": False}
+            url = settings.LLM_BASE_URL.rstrip("/") + "/api/generate"
+            headers = {"Content-Type": "text/plain"}
+            response = self._client.post(url, content=json.dumps(payload), headers=headers)
+            response.raise_for_status()
+            try:
+                data = response.json()
+                return data.get("response") or data.get("text") or response.text
+            except json.JSONDecodeError:
+                return response.text
+        except Exception as exc:
+            raise RuntimeError(self._normalize_provider_error(exc)) from exc
+
+    def _normalize_provider_error(self, exc: Exception) -> str:
+        raw_message = str(exc).strip() or exc.__class__.__name__
+        normalized = " ".join(raw_message.split())
+        lowered = normalized.lower()
+
+        if self.provider == "gemini":
+            if (
+                "api key expired" in lowered
+                or "api_key_invalid" in lowered
+                or "api key not valid" in lowered
+                or ("api key" in lowered and "invalid" in lowered)
+            ):
+                return (
+                    "Gemini API key is invalid or expired. Update GEMINI_API_KEY in the backend "
+                    ".env file and restart the API server."
+                )
+            if "quota" in lowered or "rate limit" in lowered or "resource_exhausted" in lowered:
+                return "Gemini quota or rate limit exceeded. Retry later or use a different LLM provider."
+            if "model" in lowered and ("not found" in lowered or "unsupported" in lowered):
+                return (
+                    f"Gemini model '{settings.GEMINI_MODEL}' is unavailable. "
+                    "Update GEMINI_MODEL in the backend .env file."
+                )
+            return f"Gemini request failed: {normalized}"
+
+        if isinstance(exc, httpx.ConnectError):
+            return f"Could not connect to Ollama at {settings.LLM_BASE_URL}. Start Ollama or update LLM_BASE_URL."
+        if isinstance(exc, httpx.TimeoutException):
+            return f"Ollama request timed out after {settings.LLM_TIMEOUT_SECONDS} seconds."
+        if isinstance(exc, httpx.HTTPStatusError):
+            response_text = " ".join((exc.response.text or "").split())
+            if response_text:
+                return f"Ollama returned HTTP {exc.response.status_code}: {response_text[:240]}"
+            return f"Ollama returned HTTP {exc.response.status_code}."
+        return normalized
 
     def _parse_json(self, text: str) -> Dict[str, Any]:
         try:

@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 import aiofiles
 from fastapi import UploadFile
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from tenacity import RetryError
 
 from app.config import settings
 from app.database.repositories.company_repo import CompanyRepository
@@ -468,12 +469,13 @@ class CompanyService:
                 message="Company profile is ready",
             )
         except Exception as exc:
-            logger.info("company.process_failed", company_id=company_id, error=str(exc))
+            error_message = self._normalize_error_message(exc)
+            logger.info("company.process_failed", company_id=company_id, error=error_message)
             status = profile.get("status") or {}
             status.update(
                 {
                     "processing_status": "failed",
-                    "last_error": str(exc),
+                    "last_error": error_message,
                 }
             )
             await self.repo.update(company_id, {"status": status, "updated_at": utcnow()})
@@ -483,7 +485,7 @@ class CompanyService:
                 status="failed",
                 current=0,
                 total=3,
-                message=str(exc),
+                message=error_message,
             )
 
     def _build_combined_text(self, profile: Dict[str, Any]) -> str:
@@ -624,6 +626,14 @@ class CompanyService:
             "ts": utcnow().isoformat(),
         }
         await manager.broadcast(payload)
+
+    def _normalize_error_message(self, exc: Exception) -> str:
+        if isinstance(exc, RetryError):
+            last_attempt = getattr(exc, "last_attempt", None)
+            last_exc = last_attempt.exception() if last_attempt else None
+            if last_exc:
+                return str(last_exc)
+        return str(exc)
 
     def _serialize(self, profile: Dict[str, Any]) -> Dict[str, Any]:
         if not profile:

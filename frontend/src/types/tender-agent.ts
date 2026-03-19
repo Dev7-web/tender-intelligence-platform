@@ -49,6 +49,7 @@ export interface Tender {
   gem_url?: string;
   pdf_local_path?: string;
   portal?: string;
+  expired?: boolean;
   scraped_info?: {
     department?: string;
     start_date?: string;

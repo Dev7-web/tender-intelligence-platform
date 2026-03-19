@@ -135,13 +135,24 @@ class MatchService:
         if not profile or profile.get("owner_user_id") != owner_user_id:
             raise ValueError("Company profile not found")
 
+        now = utcnow()
+
+        # --- Flush stale expired flags before querying ---
+        await self.tender_repo.collection.update_many(
+            {
+                "expired": False,
+                "scraped_info.end_date": {"$lt": now},
+            },
+            {"$set": {"expired": True}},
+        )
+
         candidate_filter = {
             "is_active": True,
             "expired": False,
             "status.llm_processed": True,
+            # Real-time date gate: only tenders whose deadline is still in the future
+            "scraped_info.end_date": {"$gte": now},
         }
-
-        now = utcnow()
         period = (time_period or "latest").lower()
         if period == "7d":
             candidate_filter["scraped_at"] = {"$gte": now - timedelta(days=7)}
@@ -278,7 +289,14 @@ class MatchService:
                     item["reasons"].insert(0, "Showing closest available matches")
 
         sort_key = (sort or "best_match").lower()
-        if "latest" in sort_key:
+        if "closing_soon" in sort_key:
+            # Urgent-first: tenders closest to their deadline appear first
+            filtered.sort(
+                key=lambda item: self._timestamp(
+                    (item["tender"].get("scraped_info") or {}).get("end_date")
+                ),
+            )
+        elif "latest" in sort_key:
             filtered.sort(
                 key=lambda item: self._timestamp(
                     (item["tender"].get("scraped_info") or {}).get("start_date")

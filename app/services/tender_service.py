@@ -55,6 +55,19 @@ class TenderService:
             "bid_value_range": bid.get("bid_value_range"),
         }
         status = self._status_from_scrape(existing_status, pdf_url_changed)
+
+        # Determine if the tender is already expired at ingestion time
+        end_date = bid.get("end_date")
+        is_expired = False
+        if isinstance(end_date, datetime):
+            is_expired = end_date < now
+        elif isinstance(end_date, str):
+            try:
+                from dateutil import parser as date_parser
+                is_expired = date_parser.parse(end_date) < now
+            except Exception:
+                pass
+
         data = {
             "bid_id": bid_id,
             "ra_no": bid.get("ra_no"),
@@ -66,7 +79,7 @@ class TenderService:
             "scraped_at": now,
             "updated_at": now,
             "is_active": True,
-            "expired": False,
+            "expired": is_expired,
         }
         if pdf_url_changed:
             data.update(

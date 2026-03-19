@@ -28,6 +28,33 @@ const safeDate = (value?: string) => {
   return format(parsed, "d MMM yyyy");
 };
 
+type DeadlineStatus = "expired" | "closing_soon" | "active";
+
+const getDeadlineStatus = (endDate?: string): DeadlineStatus => {
+  if (!endDate) return "active";
+  const parsed = new Date(endDate);
+  if (Number.isNaN(parsed.getTime())) return "active";
+  const now = new Date();
+  if (parsed < now) return "expired";
+  const hoursLeft = (parsed.getTime() - now.getTime()) / (1000 * 60 * 60);
+  if (hoursLeft <= 48) return "closing_soon";
+  return "active";
+};
+
+const getDaysLeft = (endDate?: string): string => {
+  if (!endDate) return "";
+  const parsed = new Date(endDate);
+  if (Number.isNaN(parsed.getTime())) return "";
+  const now = new Date();
+  const hoursLeft = (parsed.getTime() - now.getTime()) / (1000 * 60 * 60);
+  if (hoursLeft < 0) return "Expired";
+  if (hoursLeft < 1) return "< 1 hour left";
+  if (hoursLeft < 24) return `${Math.ceil(hoursLeft)} hours left`;
+  const daysLeft = Math.ceil(hoursLeft / 24);
+  if (daysLeft === 1) return "1 day left";
+  return `${daysLeft} days left`;
+};
+
 const TenderMatchCard = ({ item, onOpen, onAction, onShare }: TenderMatchCardProps) => {
   const tender = item.tender;
   const meta = tender.metadata || {};
@@ -36,6 +63,8 @@ const TenderMatchCard = ({ item, onOpen, onAction, onShare }: TenderMatchCardPro
   const department = meta.department || scraped.department || "Department";
   const location = meta.location || department || "India";
   const scorePercent = Math.round((item.match?.score || 0) * 100);
+  const deadlineStatus = getDeadlineStatus(scraped.end_date);
+  const daysLeft = getDaysLeft(scraped.end_date);
 
   const handleDownload = async () => {
     try {
@@ -86,10 +115,34 @@ const TenderMatchCard = ({ item, onOpen, onAction, onShare }: TenderMatchCardPro
             <img src={rupeeIcon} alt="" className="h-4 w-4" />
             {scraped.bid_value_range || meta.estimated_value || "N/A"}
           </span>
-          <span className="inline-flex items-center gap-1 text-[#d75252]">
+          <span
+            className={[
+              "inline-flex items-center gap-1",
+              deadlineStatus === "expired"
+                ? "font-semibold text-[#b91c1c]"
+                : deadlineStatus === "closing_soon"
+                  ? "font-semibold text-[#d97706]"
+                  : "text-[#d75252]",
+            ].join(" ")}
+          >
             <img src={calendarRedIcon} alt="" className="h-4 w-4" />
             {safeDate(scraped.end_date)}
           </span>
+          {deadlineStatus === "expired" && (
+            <span className="rounded-full bg-[#fef2f2] px-2 py-0.5 text-[11px] font-semibold text-[#b91c1c] border border-[#fecaca]">
+              Expired
+            </span>
+          )}
+          {deadlineStatus === "closing_soon" && (
+            <span className="rounded-full bg-[#fffbeb] px-2 py-0.5 text-[11px] font-semibold text-[#d97706] border border-[#fde68a]">
+              {daysLeft}
+            </span>
+          )}
+          {deadlineStatus === "active" && daysLeft && (
+            <span className="text-[12px] text-[#6b7280]">
+              {daysLeft}
+            </span>
+          )}
         </div>
 
         <div className="flex flex-wrap gap-2">
