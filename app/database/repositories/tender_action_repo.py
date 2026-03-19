@@ -70,6 +70,13 @@ class TenderActionRepository:
         cursor = self.collection.find(filters).sort("updated_at", -1).skip(skip).limit(limit)
         return await cursor.to_list(length=limit)
 
+    async def get_discarded_tender_ids(self, company_id: str) -> set:
+        cursor = self.collection.find(
+            {"company_id": company_id, "action": "discarded"},
+            {"tender_id": 1},
+        )
+        return {doc["tender_id"] async for doc in cursor}
+
     async def count_by_company_action(self, company_id: str, action: str) -> int:
         return await self.collection.count_documents({"company_id": company_id, "action": action})
 

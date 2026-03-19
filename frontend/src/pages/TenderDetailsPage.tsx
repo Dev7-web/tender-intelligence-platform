@@ -11,6 +11,7 @@ import organizationIcon from "@/assets/tenders/organization.svg";
 import rupeeIcon from "@/assets/tenders/rupee.svg";
 import saveIcon from "@/assets/tenders/save.svg";
 import sparkleIcon from "@/assets/tenders/sparkle.svg";
+import DiscardTender from "@/components/modals/DiscardTender";
 import DiscussWithAI from "@/components/modals/DiscussWithAI";
 import ShareTender from "@/components/modals/ShareTender";
 import { useToastSimple } from "@/components/ui/toaster-simple";
@@ -26,6 +27,7 @@ const TenderDetailsPage = () => {
 
   const [openDiscuss, setOpenDiscuss] = useState(false);
   const [openShare, setOpenShare] = useState(false);
+  const [openDiscard, setOpenDiscard] = useState(false);
 
   const { data: tender } = useQuery({
     queryKey: ["tender", id],
@@ -34,11 +36,12 @@ const TenderDetailsPage = () => {
   });
 
   const actionMutation = useMutation({
-    mutationFn: (action: "saved" | "applied" | "discarded" | null) =>
-      updateTenderAction(id, { company_id: companyId, action }),
+    mutationFn: ({ action, reason }: { action: "saved" | "applied" | "discarded" | null; reason?: string }) =>
+      updateTenderAction(id, { company_id: companyId, action, reason }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["matches", companyId] });
       queryClient.invalidateQueries({ queryKey: ["myList", companyId] });
+      setOpenDiscard(false);
       pushToast("Tender updated", "success");
     },
     onError: () => pushToast("Unable to update action", "error"),
@@ -161,7 +164,7 @@ const TenderDetailsPage = () => {
         <div className="mt-6 border-t border-[#ebedf4] pt-4">
           <div className="flex flex-wrap justify-end gap-2">
             <button
-              onClick={() => actionMutation.mutate("discarded")}
+              onClick={() => setOpenDiscard(true)}
               className="flex items-center gap-1.5 rounded-full border border-[#ef8f93] px-4 py-2 text-xs font-medium text-[#dd5056]"
             >
               <img src={discardIcon} alt="" className="h-4 w-4" /> Discard tender
@@ -173,7 +176,7 @@ const TenderDetailsPage = () => {
               <Share2 size={12} className="mr-1 inline" /> Share
             </button>
             <button
-              onClick={() => actionMutation.mutate("saved")}
+              onClick={() => actionMutation.mutate({ action: "saved" })}
               className="flex items-center gap-1.5 rounded-full border border-[#d5d9e5] px-4 py-2 text-xs font-medium text-[#30374a]"
             >
               <img src={saveIcon} alt="" className="h-4 w-4" /> Save
@@ -201,6 +204,16 @@ const TenderDetailsPage = () => {
         onClose={() => setOpenShare(false)}
         tenderId={id}
         companyId={companyId}
+      />
+
+      <DiscardTender
+        open={openDiscard}
+        onClose={() => setOpenDiscard(false)}
+        tenderTitle={title || "this tender"}
+        onConfirm={(reason) => {
+          actionMutation.mutate({ action: "discarded", reason });
+        }}
+        isPending={actionMutation.isPending}
       />
     </div>
   );

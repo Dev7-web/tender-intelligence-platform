@@ -6,6 +6,7 @@ import sendIcon from "@/assets/tenders/send.svg";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 
+import DiscardTender from "@/components/modals/DiscardTender";
 import ShareTender from "@/components/modals/ShareTender";
 import TenderMatchCard from "@/components/tenders/TenderMatchCardNew";
 import { useToastSimple } from "@/components/ui/toaster-simple";
@@ -36,6 +37,7 @@ const TendersPage = () => {
   const [sort, setSort] = useState("best_match");
   const [page, setPage] = useState(1);
   const [selectedShareTenderId, setSelectedShareTenderId] = useState<string | null>(null);
+  const [discardTenderId, setDiscardTenderId] = useState<string | null>(null);
   const [sortOpen, setSortOpen] = useState(false);
   const sortRef = useRef<HTMLDivElement | null>(null);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
@@ -90,14 +92,16 @@ const TendersPage = () => {
   const items = data?.items || [];
 
   const actionMutation = useMutation({
-    mutationFn: ({ tenderId, action }: { tenderId: string; action: "saved" | "applied" | "discarded" | null }) =>
+    mutationFn: ({ tenderId, action, reason }: { tenderId: string; action: "saved" | "applied" | "discarded" | null; reason?: string }) =>
       updateTenderAction(tenderId, {
         company_id: companyId || "",
         action,
+        reason,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["matches", companyId] });
       queryClient.invalidateQueries({ queryKey: ["dashboardStats", companyId] });
+      setDiscardTenderId(null);
     },
     onError: () => {
       pushToast("Unable to update tender action", "error");
@@ -478,7 +482,13 @@ const TendersPage = () => {
                 key={item.tender.id}
                 item={item}
                 onOpen={(tenderId) => navigate(`/tenders/${tenderId}`)}
-                onAction={(tenderId, action) => actionMutation.mutate({ tenderId, action })}
+                onAction={(tenderId, action) => {
+                  if (action === "discarded") {
+                    setDiscardTenderId(tenderId);
+                  } else {
+                    actionMutation.mutate({ tenderId, action });
+                  }
+                }}
                 onShare={(tenderId) => setSelectedShareTenderId(tenderId)}
               />
             ))}
@@ -527,6 +537,22 @@ const TendersPage = () => {
         onClose={() => setSelectedShareTenderId(null)}
         tenderId={selectedShareTenderId || ""}
         companyId={companyId || ""}
+      />
+
+      <DiscardTender
+        open={Boolean(discardTenderId)}
+        onClose={() => setDiscardTenderId(null)}
+        tenderTitle={
+          items.find((i) => i.tender.id === discardTenderId)?.tender.metadata?.title
+          || items.find((i) => i.tender.id === discardTenderId)?.tender.bid_id
+          || "this tender"
+        }
+        onConfirm={(reason) => {
+          if (discardTenderId) {
+            actionMutation.mutate({ tenderId: discardTenderId, action: "discarded", reason });
+          }
+        }}
+        isPending={actionMutation.isPending}
       />
     </div>
   );

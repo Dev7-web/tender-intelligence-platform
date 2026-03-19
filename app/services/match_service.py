@@ -207,6 +207,14 @@ class MatchService:
 
         candidates = await self.tender_repo.list(skip=0, limit=1000, filters=candidate_filter)
 
+        # Exclude tenders the user has discarded
+        discarded_ids = await self.action_repo.get_discarded_tender_ids(company_id)
+        if discarded_ids:
+            candidates = [
+                t for t in candidates
+                if str(t.get("_id")) not in discarded_ids
+            ]
+
         # Amount range filtering (done in Python because values are free-form strings)
         if amount_range and amount_range in AMOUNT_RANGES:
             min_amt, max_amt = AMOUNT_RANGES[amount_range]
@@ -350,6 +358,7 @@ class MatchService:
         user_id: str,
         tender_id: str,
         action: Optional[str],
+        reason: Optional[str] = None,
     ) -> Dict[str, Any]:
         if action not in {"saved", "applied", "discarded", None}:
             raise ValueError("Invalid action")
@@ -363,6 +372,7 @@ class MatchService:
             user_id=user_id,
             tender_id=tender_id,
             action=action,
+            notes=reason,
         )
         return {"updated": True, "action": action}
 

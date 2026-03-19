@@ -27,6 +27,7 @@ router = APIRouter(prefix="/tenders", tags=["tenders"])
 class TenderActionRequest(BaseModel):
     company_id: str
     action: Optional[str] = Field(default=None)
+    reason: Optional[str] = Field(default=None)
 
 
 class AIChatRequest(BaseModel):
@@ -150,6 +151,7 @@ async def update_tender_action(
             user_id=current_user["id"],
             tender_id=tender_id,
             action=payload.action,
+            reason=payload.reason,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

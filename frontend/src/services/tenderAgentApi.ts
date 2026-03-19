@@ -171,7 +171,7 @@ export const fetchTenderDetail = async (tenderId: string) => {
 
 export const updateTenderAction = async (
   tenderId: string,
-  payload: { company_id: string; action: "saved" | "applied" | "discarded" | null }
+  payload: { company_id: string; action: "saved" | "applied" | "discarded" | null; reason?: string }
 ) => {
   const { data } = await api.post(`/tenders/${tenderId}/action`, payload);
   return data;
