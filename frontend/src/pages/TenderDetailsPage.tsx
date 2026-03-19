@@ -66,6 +66,34 @@ const TenderDetailsPage = () => {
     return format(parsed, "d MMM yyyy");
   }, [scraped.end_date]);
 
+  const deadlineBadge = useMemo(() => {
+    if (!scraped.end_date) return null;
+    const parsed = new Date(scraped.end_date);
+    if (Number.isNaN(parsed.getTime())) return null;
+
+    const now = new Date();
+    const diffMs = parsed.getTime() - now.getTime();
+    const diffHours = diffMs / (1000 * 60 * 60);
+    const diffDays = Math.ceil(diffHours / 24);
+
+    if (diffMs < 0) {
+      return { label: "Expired", className: "rounded bg-[#fddcdb] px-2 py-1 text-xs font-semibold text-[#b91c1c]" };
+    }
+    if (diffHours < 1) {
+      return { label: "< 1 hour left", className: "rounded bg-[#fddcdb] px-2 py-1 text-xs font-semibold text-[#d35353]" };
+    }
+    if (diffHours < 24) {
+      return { label: `${Math.ceil(diffHours)}h left`, className: "rounded bg-[#fddcdb] px-2 py-1 text-xs font-semibold text-[#d35353]" };
+    }
+    if (diffDays <= 3) {
+      return { label: `${diffDays}d left`, className: "rounded bg-[#fddcdb] px-2 py-1 text-xs text-[#d35353]" };
+    }
+    if (diffDays <= 7) {
+      return { label: `${diffDays}d left`, className: "rounded bg-[#fdeecf] px-2 py-1 text-xs text-[#c98300]" };
+    }
+    return { label: `${diffDays}d left`, className: "rounded bg-[#daf4eb] px-2 py-1 text-xs text-[#16835e]" };
+  }, [scraped.end_date]);
+
   return (
     <div>
       <button
@@ -80,8 +108,15 @@ const TenderDetailsPage = () => {
           <div className="min-w-0">
             <div className="mb-3 flex flex-wrap gap-2 text-[10px]">
               <span className="rounded-full bg-[#4040E0] px-3 py-1 text-white">GeM</span>
-              <span className="rounded-full border border-[#4040E0] bg-white px-3 py-1 text-[#4040E0]">
-                Active
+              <span
+                className={[
+                  "rounded-full border px-3 py-1",
+                  deadlineBadge?.label === "Expired"
+                    ? "border-[#ef8f93] bg-[#fef2f2] text-[#b91c1c]"
+                    : "border-[#4040E0] bg-white text-[#4040E0]",
+                ].join(" ")}
+              >
+                {deadlineBadge?.label === "Expired" ? "Expired" : "Active"}
               </span>
               <span className="rounded-full border border-[#dde1eb] bg-white px-3 py-1 text-[#6d7386]">Goods</span>
               {scraped.items && (
@@ -118,9 +153,9 @@ const TenderDetailsPage = () => {
           <span className="flex items-center gap-1.5">
             <img src={calendarRedIcon} alt="" className="h-5 w-5" /> Closes: <strong>{closesOn}</strong>
           </span>
-          <span className="rounded bg-[#daf4eb] px-2 py-1 text-xs text-[#16835e]">12d left</span>
-          <span className="rounded bg-[#fdeecf] px-2 py-1 text-xs text-[#c98300]">4d left</span>
-          <span className="rounded bg-[#fddcdb] px-2 py-1 text-xs text-[#d35353]">1d left</span>
+          {deadlineBadge && (
+            <span className={deadlineBadge.className}>{deadlineBadge.label}</span>
+          )}
         </div>
 
         <div className="mt-6 border-t border-[#ebedf4] pt-4">
