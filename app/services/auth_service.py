@@ -302,6 +302,52 @@ class AuthService:
         except Exception:
             return {"_id": user_id}
 
+    async def update_profile(self, user_id: str, updates: Dict[str, Any]) -> Dict[str, Any]:
+        allowed = {"name", "username", "phone", "profession", "location", "about_me"}
+        clean = {k: (v or "").strip() for k, v in updates.items() if k in allowed}
+        if not clean:
+            raise ValueError("No valid fields to update")
+
+        clean["updated_at"] = now_utc()
+        await self.users.update_one(self._user_lookup_query(user_id), {"$set": clean})
+        user = await self.users.find_one(self._user_lookup_query(user_id))
+        return self._serialize_user(user)
+
+    async def change_password(self, user_id: str, current_password: str, new_password: str) -> Dict[str, Any]:
+        user = await self.users.find_one(self._user_lookup_query(user_id))
+        if not user:
+            raise ValueError("User not found")
+
+        existing_hash = user.get("password_hash")
+        if not existing_hash:
+            raise ValueError("This account does not use password authentication")
+
+        if not verify_password_hash(current_password, str(existing_hash)):
+            raise ValueError("Current password is incorrect")
+
+        new_hash = hash_password(new_password)
+        await self.users.update_one(
+            self._user_lookup_query(user_id),
+            {"$set": {"password_hash": new_hash, "updated_at": now_utc()}},
+        )
+        return {"updated": True}
+
+    async def update_notifications(self, user_id: str, preferences: Dict[str, bool]) -> Dict[str, Any]:
+        allowed = {"tender_updates", "matching_tenders", "expiring_tenders"}
+        clean = {k: bool(v) for k, v in preferences.items() if k in allowed}
+        await self.users.update_one(
+            self._user_lookup_query(user_id),
+            {"$set": {"notification_preferences": clean, "updated_at": now_utc()}},
+        )
+        return {"updated": True, "notification_preferences": clean}
+
+    async def delete_account(self, user_id: str) -> Dict[str, Any]:
+        user = await self.users.find_one(self._user_lookup_query(user_id))
+        if not user:
+            raise ValueError("User not found")
+        await self.users.delete_one({"_id": user["_id"]})
+        return {"deleted": True}
+
     def _serialize_user(self, user: Dict[str, Any]) -> Dict[str, Any]:
         if not user:
             return user

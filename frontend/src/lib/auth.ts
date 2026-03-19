@@ -2,7 +2,17 @@ export interface AuthUser {
   id: string;
   email: string;
   name?: string;
+  username?: string;
+  phone?: string;
+  profession?: string;
+  location?: string;
+  about_me?: string;
   company_id?: string | null;
+  notification_preferences?: {
+    tender_updates?: boolean;
+    matching_tenders?: boolean;
+    expiring_tenders?: boolean;
+  };
 }
 
 const TOKEN_KEY = "ta_token";

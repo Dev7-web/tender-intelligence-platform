@@ -8,6 +8,7 @@ import AuthPage from "@/pages/AuthPage";
 import AdminLoginPage from "@/pages/AdminLoginPage";
 import DashboardPage from "@/pages/DashboardPage";
 import HelpPage from "@/pages/HelpPage";
+import ProfilePage from "@/pages/ProfilePage";
 import LoadingPage from "@/pages/LoadingPage";
 import MyListPage from "@/pages/MyListPage";
 import OrganizationPage from "@/pages/OrganizationPage";
@@ -74,6 +75,14 @@ const App = () => {
           element={
             <AppShell>
               <HelpPage />
+            </AppShell>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <AppShell>
+              <ProfilePage />
             </AppShell>
           }
         />

@@ -24,6 +24,43 @@ export const fetchMe = async () => {
   return data.user;
 };
 
+export const updateProfile = async (payload: {
+  name?: string;
+  username?: string;
+  phone?: string;
+  profession?: string;
+  location?: string;
+  about_me?: string;
+}) => {
+  const { data } = await api.patch<{ user: AuthUser }>("/auth/profile", payload);
+  return data.user;
+};
+
+export const changePassword = async (payload: {
+  current_password: string;
+  new_password: string;
+}) => {
+  const { data } = await api.post<{ updated: boolean }>("/auth/change-password", payload);
+  return data;
+};
+
+export const updateNotifications = async (payload: {
+  tender_updates?: boolean;
+  matching_tenders?: boolean;
+  expiring_tenders?: boolean;
+}) => {
+  const { data } = await api.patch<{ updated: boolean; notification_preferences: Record<string, boolean> }>(
+    "/auth/notifications",
+    payload
+  );
+  return data;
+};
+
+export const deleteAccount = async () => {
+  const { data } = await api.delete<{ deleted: boolean }>("/auth/account");
+  return data;
+};
+
 export const createCompany = async (payload: {
   name: string;
   company_url: string;

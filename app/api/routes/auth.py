@@ -123,6 +123,79 @@ async def me(current_user: Dict[str, Any] = Depends(get_current_user)):
     return {"user": current_user}
 
 
+class UpdateProfileRequest(BaseModel):
+    name: Optional[str] = None
+    username: Optional[str] = None
+    phone: Optional[str] = None
+    profession: Optional[str] = None
+    location: Optional[str] = None
+    about_me: Optional[str] = None
+
+
+@router.patch("/profile", response_model=Dict[str, Any])
+async def update_profile(
+    payload: UpdateProfileRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    service = AuthService(db)
+    try:
+        updates = {k: v for k, v in payload.model_dump().items() if v is not None}
+        user = await service.update_profile(current_user["id"], updates)
+        return {"user": user}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=256)
+    new_password: str = Field(min_length=8, max_length=256)
+
+
+@router.post("/change-password", response_model=Dict[str, Any])
+async def change_password(
+    payload: ChangePasswordRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    service = AuthService(db)
+    try:
+        return await service.change_password(
+            current_user["id"], payload.current_password, payload.new_password
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+class NotificationPreferencesRequest(BaseModel):
+    tender_updates: Optional[bool] = None
+    matching_tenders: Optional[bool] = None
+    expiring_tenders: Optional[bool] = None
+
+
+@router.patch("/notifications", response_model=Dict[str, Any])
+async def update_notifications(
+    payload: NotificationPreferencesRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    service = AuthService(db)
+    prefs = {k: v for k, v in payload.model_dump().items() if v is not None}
+    return await service.update_notifications(current_user["id"], prefs)
+
+
+@router.delete("/account", response_model=Dict[str, Any])
+async def delete_account(
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    service = AuthService(db)
+    try:
+        return await service.delete_account(current_user["id"])
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.post("/logout", response_model=Dict[str, Any])
 async def logout(_current_user: Dict[str, Any] = Depends(get_current_user)):
     return {"logged_out": True}

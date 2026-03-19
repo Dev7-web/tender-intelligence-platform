@@ -134,6 +134,17 @@ const AppShell = ({ children }: PropsWithChildren) => {
                   <button
                     type="button"
                     role="menuitem"
+                    className="flex w-full items-center rounded-md px-3 py-2 text-sm font-medium text-[#2c3243] hover:bg-[#f4f5fb]"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      navigate("/profile");
+                    }}
+                  >
+                    Profile
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
                     className="flex w-full items-center rounded-md px-3 py-2 text-sm font-semibold text-[#cc3b3b] hover:bg-[#feecec]"
                     onClick={handleSignOut}
                   >
