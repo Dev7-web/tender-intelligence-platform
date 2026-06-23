@@ -56,17 +56,23 @@ class TenderService:
         }
         status = self._status_from_scrape(existing_status, pdf_url_changed)
 
-        # Determine if the tender is already expired at ingestion time
+        # Determine if the tender is already expired at ingestion time.
+        # Scraped dates are timezone-naive (parsed via datetime.strptime), while
+        # `now` is timezone-aware; coerce to UTC-aware before comparing to avoid
+        # "can't compare offset-naive and offset-aware datetimes".
         end_date = bid.get("end_date")
-        is_expired = False
+        parsed_end: Optional[datetime] = None
         if isinstance(end_date, datetime):
-            is_expired = end_date < now
+            parsed_end = end_date
         elif isinstance(end_date, str):
             try:
                 from dateutil import parser as date_parser
-                is_expired = date_parser.parse(end_date) < now
+                parsed_end = date_parser.parse(end_date)
             except Exception:
-                pass
+                parsed_end = None
+        if parsed_end is not None and parsed_end.tzinfo is None:
+            parsed_end = parsed_end.replace(tzinfo=timezone.utc)
+        is_expired = parsed_end < now if parsed_end is not None else False
 
         data = {
             "bid_id": bid_id,
