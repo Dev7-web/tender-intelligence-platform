@@ -15,6 +15,12 @@ from app.processors.embedder import TextEmbedder
 from app.processors.llm_extractor import LLMExtractor
 from app.processors.pdf_extractor import PDFExtractor
 from app.scraper.pdf_downloader import download_with_retry
+from app.services.tender_expiry import (
+    active_tender_filter,
+    ensure_utc_datetime,
+    refresh_expired_flags,
+    tender_inactive_reason,
+)
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -44,35 +50,20 @@ class TenderService:
         pdf_url_changed = bool(existing and existing_pdf_url and incoming_pdf_url and existing_pdf_url != incoming_pdf_url)
 
         now = datetime.now(timezone.utc)
+        start_date = ensure_utc_datetime(bid.get("start_date"))
+        end_date = ensure_utc_datetime(bid.get("end_date"))
         scraped_info = {
             "items": bid.get("items"),
             "quantity": bid.get("quantity"),
             "department": bid.get("department"),
             "department_address": bid.get("department_address"),
-            "start_date": bid.get("start_date"),
-            "end_date": bid.get("end_date"),
+            "start_date": start_date,
+            "end_date": end_date,
             "bid_type": bid.get("bid_type"),
             "bid_value_range": bid.get("bid_value_range"),
         }
         status = self._status_from_scrape(existing_status, pdf_url_changed)
-
-        # Determine if the tender is already expired at ingestion time.
-        # Scraped dates are timezone-naive (parsed via datetime.strptime), while
-        # `now` is timezone-aware; coerce to UTC-aware before comparing to avoid
-        # "can't compare offset-naive and offset-aware datetimes".
-        end_date = bid.get("end_date")
-        parsed_end: Optional[datetime] = None
-        if isinstance(end_date, datetime):
-            parsed_end = end_date
-        elif isinstance(end_date, str):
-            try:
-                from dateutil import parser as date_parser
-                parsed_end = date_parser.parse(end_date)
-            except Exception:
-                parsed_end = None
-        if parsed_end is not None and parsed_end.tzinfo is None:
-            parsed_end = parsed_end.replace(tzinfo=timezone.utc)
-        is_expired = parsed_end < now if parsed_end is not None else False
+        is_expired = end_date < now if end_date is not None else False
 
         data = {
             "bid_id": bid_id,
@@ -101,6 +92,17 @@ class TenderService:
     async def process_tender(self, bid_id: str) -> bool:
         tender = await self.repo.get_by_bid_id(bid_id)
         if not tender:
+            return False
+
+        now = datetime.now(timezone.utc)
+        inactive_reason = tender_inactive_reason(tender, now)
+        if inactive_reason:
+            if inactive_reason == "expired" and tender.get("expired") is not True:
+                await self.repo.collection.update_one(
+                    {"bid_id": bid_id},
+                    {"$set": {"expired": True, "updated_at": now}},
+                )
+            logger.info("tender.process_skipped", bid_id=bid_id, reason=inactive_reason)
             return False
 
         status = dict(tender.get("status") or {})
@@ -251,8 +253,13 @@ class TenderService:
         return tender
 
     async def process_pending_tenders(self, limit: int = 50) -> int:
+        now = datetime.now(timezone.utc)
+        await refresh_expired_flags(self.repo.collection, now)
+
         processed = 0
-        cursor = self.repo.collection.find({"status.llm_processed": False}).limit(limit)
+        filters = active_tender_filter(now)
+        filters["status.llm_processed"] = False
+        cursor = self.repo.collection.find(filters).limit(limit)
         async for tender in cursor:
             bid_id = tender.get("bid_id")
             if bid_id and await self.process_tender(bid_id):
@@ -269,11 +276,7 @@ class TenderService:
         return await self.process_tender(tender.get("bid_id"))
 
     async def _update_expired_flags(self) -> None:
-        now = datetime.now(timezone.utc)
-        await self.repo.collection.update_many(
-            {"scraped_info.end_date": {"$lt": now}},
-            {"$set": {"expired": True}},
-        )
+        await refresh_expired_flags(self.repo.collection)
 
     def _build_filters(
         self,

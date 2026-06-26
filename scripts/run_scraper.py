@@ -10,9 +10,14 @@ from app.services.tender_service import TenderService
 
 async def run(max_pages: int, max_bids: int, test: bool) -> None:
     async with GemScraper() as scraper:
-        bids = await scraper.scrape_bids(max_pages=max_pages, max_bids=max_bids)
+        result = await scraper.scrape_bids(max_pages=max_pages, max_bids=max_bids)
+        bids = result.bids
         if test:
-            print(f"Scraped {len(bids)} bids")
+            print(
+                f"Scraped {len(bids)} bids "
+                f"(pages={result.pages_scraped}, known_skipped={result.known_tenders_skipped}, "
+                f"sort_applied={result.sort_applied})"
+            )
             return
 
         db = get_database()

@@ -14,6 +14,7 @@ from app.database.repositories.company_repo import CompanyRepository
 from app.database.repositories.tender_repo import TenderRepository
 from app.processors.embedder import TextEmbedder
 from app.services.matching_utils import calculate_enhanced_match_score, semantic_overlap_score
+from app.services.tender_expiry import active_tender_filter, refresh_expired_flags
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -41,20 +42,11 @@ class SearchService:
 
         now = datetime.now(timezone.utc)
 
-        # Flush stale expired flags before querying
-        await self.tender_repo.collection.update_many(
-            {
-                "expired": False,
-                "scraped_info.end_date": {"$lt": now},
-            },
-            {"$set": {"expired": True}},
-        )
+        await refresh_expired_flags(self.tender_repo.collection, now)
 
         candidate_filter: Dict[str, Any] = {
+            **active_tender_filter(now),
             "is_active": True,
-            "expired": False,
-            # Real-time date gate: only tenders whose deadline is still in the future
-            "scraped_info.end_date": {"$gte": now},
         }
         if filters:
             if filters.get("domains"):

@@ -17,6 +17,7 @@ from app.database.repositories.tender_action_repo import TenderActionRepository
 from app.database.repositories.tender_repo import TenderRepository
 from app.processors.embedder import TextEmbedder
 from app.services.matching_utils import calculate_enhanced_match_score
+from app.services.tender_expiry import active_tender_filter, refresh_expired_flags
 
 
 def utcnow() -> datetime:
@@ -137,21 +138,12 @@ class MatchService:
 
         now = utcnow()
 
-        # --- Flush stale expired flags before querying ---
-        await self.tender_repo.collection.update_many(
-            {
-                "expired": False,
-                "scraped_info.end_date": {"$lt": now},
-            },
-            {"$set": {"expired": True}},
-        )
+        await refresh_expired_flags(self.tender_repo.collection, now)
 
         candidate_filter = {
+            **active_tender_filter(now),
             "is_active": True,
-            "expired": False,
             "status.llm_processed": True,
-            # Real-time date gate: only tenders whose deadline is still in the future
-            "scraped_info.end_date": {"$gte": now},
         }
         period = (time_period or "latest").lower()
         if period == "7d":

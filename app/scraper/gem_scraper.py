@@ -11,7 +11,8 @@ import random
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, List, Optional
+from dataclasses import dataclass
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Set
 
 from playwright.sync_api import sync_playwright, Browser, Page
 
@@ -20,6 +21,20 @@ from app.scraper.parser import parse_bid_cards
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+@dataclass
+class ScrapeResult:
+    bids: List[Dict[str, Any]]
+    pages_scraped: int = 0
+    known_tenders_skipped: int = 0
+    sort_applied: bool = False
+
+    def __iter__(self) -> Iterator[Dict[str, Any]]:
+        return iter(self.bids)
+
+    def __len__(self) -> int:
+        return len(self.bids)
 
 
 class GemScraper:
@@ -116,54 +131,285 @@ class GemScraper:
         self._initialized = False
 
     async def scrape_bids(
-        self, max_pages: Optional[int] = None, max_bids: Optional[int] = None
-    ) -> List[Dict[str, Any]]:
+        self,
+        max_pages: Optional[int] = None,
+        max_bids: Optional[int] = None,
+        known_bid_ids: Optional[Iterable[str]] = None,
+        stop_after_known: Optional[int] = None,
+    ) -> ScrapeResult:
         """Scrape bids from GeM listing pages."""
-        return await self._run_in_executor(self._sync_scrape_bids, max_pages, max_bids)
+        return await self._run_in_executor(
+            self._sync_scrape_bids,
+            max_pages,
+            max_bids,
+            set(known_bid_ids or []),
+            stop_after_known,
+        )
 
     def _sync_scrape_bids(
-        self, max_pages: Optional[int] = None, max_bids: Optional[int] = None
-    ) -> List[Dict[str, Any]]:
+        self,
+        max_pages: Optional[int] = None,
+        max_bids: Optional[int] = None,
+        known_bid_ids: Optional[Set[str]] = None,
+        stop_after_known: Optional[int] = None,
+    ) -> ScrapeResult:
         """Synchronous scraping - runs in thread."""
         if self.page is None:
             raise RuntimeError("Scraper not initialized")
 
         max_pages = max_pages or settings.SCRAPE_MAX_PAGES
         max_bids = max_bids or settings.SCRAPE_MAX_BIDS
+        known_bid_ids = known_bid_ids or set()
+        stop_after_known = stop_after_known if stop_after_known is not None else settings.SCRAPE_STOP_AFTER_KNOWN_BIDS
 
         logger.info("scraper.start", max_pages=max_pages, max_bids=max_bids)
-        self.page.goto(self.BASE_URL, timeout=self.PAGE_LOAD_TIMEOUT, wait_until="networkidle")
+        sort_applied = self._sync_prepare_latest_listing()
 
         collected: List[Dict[str, Any]] = []
         seen: set = set()
+        pages_scraped = 0
+        known_tenders_skipped = 0
+        consecutive_known = 0
 
         for page_index in range(max_pages):
             self._sync_random_delay()
             html = self.page.content()
             bids = parse_bid_cards(html)
+            pages_scraped += 1
 
             for bid in bids:
                 bid_id = bid.get("bid_id")
                 if not bid_id or bid_id in seen:
                     continue
                 seen.add(bid_id)
+
+                if bid_id in known_bid_ids:
+                    known_tenders_skipped += 1
+                    consecutive_known += 1
+                    if stop_after_known > 0 and consecutive_known >= stop_after_known:
+                        logger.info(
+                            "scraper.known_stop_reached",
+                            consecutive_known=consecutive_known,
+                            known_tenders_skipped=known_tenders_skipped,
+                        )
+                        return ScrapeResult(
+                            bids=collected,
+                            pages_scraped=pages_scraped,
+                            known_tenders_skipped=known_tenders_skipped,
+                            sort_applied=sort_applied,
+                        )
+                    continue
+
+                consecutive_known = 0
                 collected.append(bid)
                 if len(collected) >= max_bids:
                     logger.info("scraper.max_bids_reached", count=len(collected))
-                    return collected
+                    return ScrapeResult(
+                        bids=collected,
+                        pages_scraped=pages_scraped,
+                        known_tenders_skipped=known_tenders_skipped,
+                        sort_applied=sort_applied,
+                    )
 
             logger.info(
                 "scraper.page_parsed",
                 page=page_index + 1,
                 bids=len(bids),
                 total=len(collected),
+                known_tenders_skipped=known_tenders_skipped,
             )
 
             if not self._sync_try_next_page():
                 if not self._sync_try_scroll():
                     break
 
-        return collected
+        return ScrapeResult(
+            bids=collected,
+            pages_scraped=pages_scraped,
+            known_tenders_skipped=known_tenders_skipped,
+            sort_applied=sort_applied,
+        )
+
+    def _sync_prepare_latest_listing(self) -> bool:
+        if self.page is None:
+            raise RuntimeError("Scraper not initialized")
+
+        sort_label = settings.SCRAPE_SORT_LABEL
+        self.page.goto(self.BASE_URL, timeout=self.PAGE_LOAD_TIMEOUT, wait_until="networkidle")
+        self._sync_ensure_ongoing_bids_filter()
+
+        sort_applied = self._sync_select_sort_label(sort_label)
+        if sort_applied:
+            self._sync_wait_for_sort_label(sort_label)
+
+        if not sort_applied or not self._sync_verify_sort_label(sort_label):
+            raise RuntimeError(f"Unable to apply GeM sort option: {sort_label}")
+
+        return True
+
+    def _sync_ensure_ongoing_bids_filter(self) -> None:
+        if self.page is None:
+            return
+
+        try:
+            self.page.evaluate(
+                """
+                () => {
+                    const labels = Array.from(document.querySelectorAll("label"));
+                    const label = labels.find((item) => (item.innerText || "").includes("Ongoing Bids/RA"));
+                    if (!label) return false;
+                    const input = label.querySelector("input[type='checkbox']")
+                        || (label.htmlFor ? document.getElementById(label.htmlFor) : null);
+                    if (!input) return false;
+                    if (!input.checked) input.click();
+                    return true;
+                }
+                """
+            )
+        except Exception as exc:
+            logger.info("scraper.ongoing_filter_failed", error=str(exc))
+
+    def _sync_select_sort_label(self, sort_label: str) -> bool:
+        if self.page is None:
+            return False
+
+        if self._sync_select_gem_dropdown_sort(sort_label):
+            return True
+
+        return self._sync_select_native_sort(sort_label)
+
+    def _sync_select_gem_dropdown_sort(self, sort_label: str) -> bool:
+        if self.page is None:
+            return False
+
+        try:
+            current_sort = self.page.query_selector("#currentSort")
+            sort_option = self.page.query_selector(self._gem_sort_option_selector(sort_label))
+            if not current_sort or not sort_option:
+                return False
+
+            current_sort.click()
+            sort_option.click()
+            return True
+        except Exception as exc:
+            logger.info("scraper.gem_sort_select_failed", error=str(exc))
+            return False
+
+    def _sync_select_native_sort(self, sort_label: str) -> bool:
+        if self.page is None:
+            return False
+
+        try:
+            return bool(
+                self.page.evaluate(
+                    """
+                    (sortLabel) => {
+                        const normalize = (value) => (value || "").replace(/\\s+/g, " ").trim();
+                        for (const select of Array.from(document.querySelectorAll("select"))) {
+                            const option = Array.from(select.options || []).find(
+                                (item) => normalize(item.textContent) === sortLabel
+                            );
+                            if (!option) continue;
+                            select.value = option.value;
+                            select.dispatchEvent(new Event("change", { bubbles: true }));
+                            return true;
+                        }
+                        return false;
+                    }
+                    """,
+                    sort_label,
+                )
+            )
+        except Exception as exc:
+            logger.info("scraper.sort_select_failed", error=str(exc))
+            return False
+
+    def _sync_wait_for_sort_label(self, sort_label: str) -> None:
+        if self.page is None:
+            return
+
+        try:
+            self.page.wait_for_load_state("networkidle", timeout=self.PAGE_LOAD_TIMEOUT)
+        except Exception as exc:
+            logger.info("scraper.sort_networkidle_timeout", error=str(exc))
+
+        try:
+            if self.page.query_selector("#currentSort"):
+                self.page.wait_for_function(
+                    """
+                    (sortLabel) => {
+                        const current = document.querySelector("#currentSort");
+                        if (!current) return true;
+                        const normalize = (value) => (value || "").replace(/\\s+/g, " ").trim();
+                        return normalize(current.textContent) === sortLabel;
+                    }
+                    """,
+                    sort_label,
+                    timeout=self.ELEMENT_TIMEOUT,
+                )
+        except Exception as exc:
+            logger.info("scraper.sort_label_wait_failed", error=str(exc))
+
+        time.sleep(1)
+
+    def _sync_verify_sort_label(self, sort_label: str) -> bool:
+        if self.page is None:
+            return False
+
+        if self._sync_verify_gem_dropdown_sort(sort_label):
+            return True
+
+        return self._sync_verify_native_sort(sort_label)
+
+    def _sync_verify_gem_dropdown_sort(self, sort_label: str) -> bool:
+        if self.page is None:
+            return False
+
+        try:
+            current_sort = self.page.query_selector("#currentSort")
+            if not current_sort:
+                return False
+            current_text = current_sort.inner_text()
+            return self._normalize_text(current_text) == sort_label
+        except Exception as exc:
+            logger.info("scraper.gem_sort_verify_failed", error=str(exc))
+            return False
+
+    def _sync_verify_native_sort(self, sort_label: str) -> bool:
+        if self.page is None:
+            return False
+
+        try:
+            return bool(
+                self.page.evaluate(
+                    """
+                    (sortLabel) => {
+                        const normalize = (value) => (value || "").replace(/\\s+/g, " ").trim();
+                        return Array.from(document.querySelectorAll("select")).some((select) => {
+                            const selected = select.options && select.options[select.selectedIndex];
+                            return selected && normalize(selected.textContent) === sortLabel;
+                        });
+                    }
+                    """,
+                    sort_label,
+                )
+            )
+        except Exception as exc:
+            logger.info("scraper.sort_verify_failed", error=str(exc))
+            return False
+
+    def _gem_sort_option_selector(self, sort_label: str) -> str:
+        mapping = {
+            "Bid Start Date: Latest First": "#Bid-Start-Date-Latest",
+            "Bid Start Date: Oldest First": "#Bid-Start-Date-Oldest",
+            "Bid End Date: Latest First": "#Bid-End-Date-Latest",
+            "Bid End Date: Oldest First": "#Bid-End-Date-Oldest",
+        }
+        return mapping.get(sort_label, f"#{sort_label.replace(':', '').replace(' ', '-')}")
+
+    @staticmethod
+    def _normalize_text(value: str) -> str:
+        return " ".join((value or "").split()).strip()
 
     def _sync_try_next_page(self) -> bool:
         """Try to navigate to next page - runs in thread."""

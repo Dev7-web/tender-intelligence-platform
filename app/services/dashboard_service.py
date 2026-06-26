@@ -7,9 +7,11 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Tuple
 
+from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.services.match_service import MatchService
+from app.services.tender_expiry import active_tender_filter, is_tender_active, refresh_expired_flags
 
 
 def utcnow() -> datetime:
@@ -32,6 +34,9 @@ class DashboardService:
         company_id: str | None = None,
         overview_range: str = "7d",
     ) -> Dict[str, Any]:
+        now = utcnow()
+        await refresh_expired_flags(self.tenders, now)
+
         profile = None
         if company_id:
             profile = await self.companies.find_one({"company_id": company_id, "owner_user_id": owner_user_id})
@@ -41,7 +46,9 @@ class DashboardService:
         active_company_id = profile.get("company_id") if profile else None
         company_name = (profile or {}).get("name") or "Company"
 
-        tenders_analyzed = await self.tenders.count_documents({"status.llm_processed": True, "expired": False})
+        analyzed_filter = active_tender_filter(now)
+        analyzed_filter["status.llm_processed"] = True
+        tenders_analyzed = await self.tenders.count_documents(analyzed_filter)
 
         best_tenders_found = 0
         if active_company_id:
@@ -60,18 +67,18 @@ class DashboardService:
         saved_count = 0
         applied_count = 0
         if active_company_id:
-            saved_count = await self.actions.count_documents({"company_id": active_company_id, "action": "saved"})
-            applied_count = await self.actions.count_documents({"company_id": active_company_id, "action": "applied"})
+            saved_count = await self._count_active_actions(active_company_id, "saved", now)
+            applied_count = await self._count_active_actions(active_company_id, "applied", now)
 
         normalized_range = self._normalize_overview_range(overview_range)
         selected_start = self._overview_start_from_range(normalized_range)
-        overview = await self._overview_counts(active_company_id, selected_start)
+        overview = await self._overview_counts(active_company_id, selected_start, now)
 
-        seven_days_ago = utcnow() - timedelta(days=7)
+        seven_days_ago = now - timedelta(days=7)
         overview_last_7_days = (
             overview
             if normalized_range == "7d"
-            else await self._overview_counts(active_company_id, seven_days_ago)
+            else await self._overview_counts(active_company_id, seven_days_ago, now)
         )
 
         return {
@@ -94,6 +101,9 @@ class DashboardService:
         company_id: str | None,
         range_key: str,
     ) -> Dict[str, Any]:
+        now = utcnow()
+        await refresh_expired_flags(self.tenders, now)
+
         profile = None
         if company_id:
             profile = await self.companies.find_one({"company_id": company_id, "owner_user_id": owner_user_id})
@@ -108,17 +118,22 @@ class DashboardService:
         saved_series: List[int] = []
 
         for i, start in enumerate(bucket_starts):
-            end = bucket_starts[i + 1] if i + 1 < len(bucket_starts) else utcnow() + timedelta(seconds=1)
+            end = bucket_starts[i + 1] if i + 1 < len(bucket_starts) else now + timedelta(seconds=1)
 
-            gathering = await self.tenders.count_documents({"scraped_at": {"$gte": start, "$lt": end}})
-            analyzed = await self.tenders.count_documents({"processed_at": {"$gte": start, "$lt": end}})
+            gathering_filter = active_tender_filter(now)
+            gathering_filter["scraped_at"] = {"$gte": start, "$lt": end}
+            gathering = await self.tenders.count_documents(gathering_filter)
+
+            analyzed_filter = active_tender_filter(now)
+            analyzed_filter["processed_at"] = {"$gte": start, "$lt": end}
+            analyzed_filter["status.llm_processed"] = True
+            analyzed = await self.tenders.count_documents(analyzed_filter)
             if company:
-                saved = await self.actions.count_documents(
-                    {
-                        "company_id": company,
-                        "action": "saved",
-                        "updated_at": {"$gte": start, "$lt": end},
-                    }
+                saved = await self._count_active_actions(
+                    company,
+                    "saved",
+                    now,
+                    {"updated_at": {"$gte": start, "$lt": end}},
                 )
             else:
                 saved = 0
@@ -165,7 +180,12 @@ class DashboardService:
         return activity[:limit]
 
     async def get_queue(self, limit: int = 20) -> List[Dict[str, Any]]:
-        cursor = self.tenders.find({"status.llm_processed": False}).sort("created_at", -1).limit(limit)
+        now = utcnow()
+        await refresh_expired_flags(self.tenders, now)
+
+        filters = active_tender_filter(now)
+        filters["status.llm_processed"] = False
+        cursor = self.tenders.find(filters).sort("created_at", -1).limit(limit)
         items: List[Dict[str, Any]] = []
         async for tender in cursor:
             items.append(
@@ -209,19 +229,18 @@ class DashboardService:
             labels.append(month.strftime("%b"))
         return labels, starts
 
-    async def _overview_counts(self, company_id: str | None, start: datetime) -> Dict[str, int]:
-        gathering = await self.tenders.count_documents({"scraped_at": {"$gte": start}})
-        analyzed = await self.tenders.count_documents({"processed_at": {"$gte": start}})
-        saved = (
-            await self.actions.count_documents({"company_id": company_id, "action": "saved", "updated_at": {"$gte": start}})
-            if company_id
-            else 0
-        )
-        applied = (
-            await self.actions.count_documents({"company_id": company_id, "action": "applied", "updated_at": {"$gte": start}})
-            if company_id
-            else 0
-        )
+    async def _overview_counts(self, company_id: str | None, start: datetime, now: datetime) -> Dict[str, int]:
+        gathering_filter = active_tender_filter(now)
+        gathering_filter["scraped_at"] = {"$gte": start}
+        gathering = await self.tenders.count_documents(gathering_filter)
+
+        analyzed_filter = active_tender_filter(now)
+        analyzed_filter["processed_at"] = {"$gte": start}
+        analyzed_filter["status.llm_processed"] = True
+        analyzed = await self.tenders.count_documents(analyzed_filter)
+
+        saved = await self._count_active_actions(company_id, "saved", now, {"updated_at": {"$gte": start}}) if company_id else 0
+        applied = await self._count_active_actions(company_id, "applied", now, {"updated_at": {"$gte": start}}) if company_id else 0
         return {
             "gathering": gathering,
             "analyzed": analyzed,
@@ -242,3 +261,41 @@ class DashboardService:
         if range_key == "12m":
             return now - timedelta(days=365)
         return now - timedelta(days=7)
+
+    async def _count_active_actions(
+        self,
+        company_id: str,
+        action: str,
+        now: datetime,
+        extra_filters: Dict[str, Any] | None = None,
+    ) -> int:
+        filters: Dict[str, Any] = {"company_id": company_id, "action": action}
+        if extra_filters:
+            filters.update(extra_filters)
+
+        count = 0
+        async for record in self.actions.find(filters):
+            tender = await self._find_tender_by_id(record.get("tender_id"))
+            if tender and is_tender_active(tender, now):
+                count += 1
+        return count
+
+    async def _find_tender_by_id(self, tender_id: Any) -> Dict[str, Any] | None:
+        if not tender_id:
+            return None
+
+        candidates: List[Any] = []
+        if isinstance(tender_id, ObjectId):
+            candidates.append(tender_id)
+        else:
+            try:
+                candidates.append(ObjectId(str(tender_id)))
+            except Exception:
+                pass
+            candidates.append(str(tender_id))
+
+        for candidate in candidates:
+            tender = await self.tenders.find_one({"_id": candidate})
+            if tender:
+                return tender
+        return None

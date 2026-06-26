@@ -12,6 +12,7 @@ from typing import Any, Dict, List
 from app.config import settings
 from app.database.mongodb import get_database
 from app.scraper.gem_scraper import GemScraper
+from app.services.tender_expiry import refresh_expired_flags, tender_inactive_reason
 from app.services.tender_service import TenderService
 from app.utils.logger import get_logger
 
@@ -37,8 +38,12 @@ async def run_scrape_job() -> None:
             "pages_scraped": 0,
             "tenders_found": 0,
             "new_tenders": 0,
+            "known_tenders_skipped": 0,
             "pdfs_downloaded": 0,
             "llm_processed": 0,
+            "skipped_expired": 0,
+            "skipped_missing_deadline": 0,
+            "sort_applied": False,
             "errors": 0,
         },
         "errors": [],
@@ -57,9 +62,17 @@ async def run_scrape_job() -> None:
     errors: List[Dict[str, Any]] = []
 
     try:
+        known_bid_ids = await _load_known_bid_ids(service.repo.collection)
         async with GemScraper() as scraper:
-            bids = await scraper.scrape_bids()
-            stats["tenders_found"] = len(bids)
+            scrape_result = await scraper.scrape_bids(
+                known_bid_ids=known_bid_ids,
+                stop_after_known=settings.SCRAPE_STOP_AFTER_KNOWN_BIDS,
+            )
+            bids = scrape_result.bids
+            stats["pages_scraped"] = scrape_result.pages_scraped
+            stats["known_tenders_skipped"] = scrape_result.known_tenders_skipped
+            stats["sort_applied"] = scrape_result.sort_applied
+            stats["tenders_found"] = len(bids) + scrape_result.known_tenders_skipped
 
             total_bids = max(len(bids), 1)
             for index, bid in enumerate(bids, start=1):
@@ -67,20 +80,33 @@ async def run_scrape_job() -> None:
                 try:
                     await service.create_or_update_from_scrape(bid)
                     stats["new_tenders"] += 1
-                    if await service.process_tender(bid_id):
+
+                    tender = await service.repo.get_by_bid_id(bid_id) if bid_id else None
+                    inactive_reason = tender_inactive_reason(tender or {})
+                    if inactive_reason == "expired":
+                        stats["skipped_expired"] += 1
+                    elif inactive_reason == "missing_deadline":
+                        stats["skipped_missing_deadline"] += 1
+                    elif await service.process_tender(bid_id):
                         stats["pdfs_downloaded"] += 1
                         stats["llm_processed"] += 1
                     else:
-                        stats["errors"] += 1
                         tender = await service.repo.get_by_bid_id(bid_id) if bid_id else None
-                        last_error = ((tender or {}).get("status") or {}).get("last_error") or "Tender processing failed"
-                        errors.append(
-                            {
-                                "bid_id": bid_id,
-                                "error": last_error,
-                                "timestamp": utcnow(),
-                            }
-                        )
+                        inactive_reason = tender_inactive_reason(tender or {})
+                        if inactive_reason == "expired":
+                            stats["skipped_expired"] += 1
+                        elif inactive_reason == "missing_deadline":
+                            stats["skipped_missing_deadline"] += 1
+                        else:
+                            stats["errors"] += 1
+                            last_error = ((tender or {}).get("status") or {}).get("last_error") or "Tender processing failed"
+                            errors.append(
+                                {
+                                    "bid_id": bid_id,
+                                    "error": last_error,
+                                    "timestamp": utcnow(),
+                                }
+                            )
                 except Exception as exc:
                     stats["errors"] += 1
                     errors.append(
@@ -101,13 +127,7 @@ async def run_scrape_job() -> None:
                 )
 
         # Mark any tenders whose deadline has passed as expired
-        await service.repo.collection.update_many(
-            {
-                "expired": False,
-                "scraped_info.end_date": {"$lt": utcnow()},
-            },
-            {"$set": {"expired": True}},
-        )
+        await refresh_expired_flags(service.repo.collection, utcnow())
 
         await scrape_logs.update_one(
             {"job_id": job_id},
@@ -162,6 +182,11 @@ async def run_scrape_job() -> None:
 
 def run_scrape_job_sync() -> None:
     asyncio.run(run_scrape_job())
+
+
+async def _load_known_bid_ids(tenders_collection) -> set[str]:
+    cursor = tenders_collection.find({}, {"bid_id": 1})
+    return {doc.get("bid_id") async for doc in cursor if doc.get("bid_id")}
 
 
 async def run_process_job() -> None:

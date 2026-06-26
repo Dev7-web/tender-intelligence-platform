@@ -38,6 +38,8 @@ class Settings(BaseSettings):
     SCRAPE_MAX_BIDS: int = 200
     SCRAPE_MIN_DELAY: int = 2
     SCRAPE_MAX_DELAY: int = 5
+    SCRAPE_SORT_LABEL: str = "Bid Start Date: Latest First"
+    SCRAPE_STOP_AFTER_KNOWN_BIDS: int = 20
     SCRAPER_HEADLESS: bool = True
 
     # LLM

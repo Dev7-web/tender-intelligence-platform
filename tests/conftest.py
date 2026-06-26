@@ -68,16 +68,24 @@ class InMemoryCollection:
         self.docs.append(payload)
         return SimpleResult(inserted_id=payload["_id"])
 
-    def find(self, filters: Optional[Dict[str, Any]] = None):
-        matched = [copy.deepcopy(item) for item in self.docs if _matches(item, filters or {})]
+    def find(self, filters: Optional[Dict[str, Any]] = None, projection: Optional[Dict[str, Any]] = None):
+        matched = [
+            _project_doc(copy.deepcopy(item), projection)
+            for item in self.docs
+            if _matches(item, filters or {})
+        ]
         return InMemoryCursor(matched)
 
-    async def find_one(self, filters: Optional[Dict[str, Any]] = None, sort=None):
+    async def find_one(self, filters: Optional[Dict[str, Any]] = None, projection: Optional[Dict[str, Any]] = None, sort=None):
+        if isinstance(projection, list) and sort is None:
+            sort = projection
+            projection = None
+
         matched = [copy.deepcopy(item) for item in self.docs if _matches(item, filters or {})]
         if sort:
             key, direction = sort[0]
             matched.sort(key=lambda item: _nested_get(item, key), reverse=direction < 0)
-        return matched[0] if matched else None
+        return _project_doc(matched[0], projection) if matched else None
 
     async def update_one(self, filters: Dict[str, Any], update: Dict[str, Any], upsert: bool = False):
         for index, item in enumerate(self.docs):
@@ -132,6 +140,24 @@ def _nested_set(doc: Dict[str, Any], path: str, value: Any):
             current[key] = {}
         current = current[key]
     current[keys[-1]] = value
+
+
+def _project_doc(doc: Dict[str, Any], projection: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    if not projection:
+        return doc
+
+    include_keys = {key for key, value in projection.items() if value}
+    if not include_keys:
+        return doc
+
+    projected: Dict[str, Any] = {}
+    for key in include_keys:
+        value = _nested_get(doc, key)
+        if value is not None:
+            _nested_set(projected, key, value)
+    if projection.get("_id", 1) and "_id" in doc:
+        projected["_id"] = doc["_id"]
+    return projected
 
 
 def _seed_from_filter(filters: Dict[str, Any]) -> Dict[str, Any]:

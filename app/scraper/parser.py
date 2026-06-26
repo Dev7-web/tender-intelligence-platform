@@ -5,14 +5,16 @@ HTML parsing utilities for GeM bid listings.
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+from zoneinfo import ZoneInfo
 
 from bs4 import BeautifulSoup
 
 
 BID_ID_PATTERN = re.compile(r"GEM/\d{4}/[A-Z]/\d+")
 RA_NO_PATTERN = re.compile(r"GEM/\d{4}/R/\d+")
+GEM_TIMEZONE = ZoneInfo("Asia/Kolkata")
 
 
 def parse_bid_cards(html: str) -> List[Dict[str, Any]]:
@@ -21,18 +23,20 @@ def parse_bid_cards(html: str) -> List[Dict[str, Any]]:
     candidates = []
 
     for link in soup.find_all("a", string=BID_ID_PATTERN):
-        bid_id = link.get_text(strip=True)
         container = _find_card_container(link)
         text = container.get_text(" ", strip=True) if container else link.parent.get_text(" ", strip=True)
-        candidates.append(_parse_bid_text(bid_id, text, link))
+        parsed = _parse_bid_text(text, link)
+        if parsed:
+            candidates.append(parsed)
 
     # Fallback: scan text blocks if anchors are missing
     if not candidates:
         for element in soup.find_all(text=BID_ID_PATTERN):
-            bid_id = BID_ID_PATTERN.search(element).group(0)
             container = _find_card_container(element.parent)
             text = container.get_text(" ", strip=True) if container else element.parent.get_text(" ", strip=True)
-            candidates.append(_parse_bid_text(bid_id, text, None))
+            parsed = _parse_bid_text(text, None)
+            if parsed:
+                candidates.append(parsed)
 
     # Deduplicate by bid_id
     seen = set()
@@ -59,8 +63,12 @@ def _find_card_container(element) -> Optional[Any]:
     return None
 
 
-def _parse_bid_text(bid_id: str, text: str, link) -> Dict[str, Any]:
-    ra_no = _search_pattern(RA_NO_PATTERN, text)
+def _parse_bid_text(text: str, link) -> Optional[Dict[str, Any]]:
+    bid_id = _extract_bid_id(text)
+    if not bid_id:
+        return None
+
+    ra_no = _extract_ra_no(text)
     scraped = {
         "bid_id": bid_id,
         "ra_no": ra_no,
@@ -81,6 +89,25 @@ def _parse_bid_text(bid_id: str, text: str, link) -> Dict[str, Any]:
     scraped["pdf_url"] = pdf_url
     scraped["gem_url"] = pdf_url
     return scraped
+
+
+def _extract_bid_id(text: str) -> Optional[str]:
+    labeled = re.search(r"Bid\s+No\.?\s*[:\-]\s*(GEM/\d{4}/[A-Z]/\d+)", text, flags=re.IGNORECASE)
+    if labeled:
+        return labeled.group(1)
+
+    for match in BID_ID_PATTERN.finditer(text):
+        value = match.group(0)
+        if not re.match(RA_NO_PATTERN, value):
+            return value
+    return None
+
+
+def _extract_ra_no(text: str) -> Optional[str]:
+    labeled = re.search(r"RA\s+No\.?\s*[:\-]\s*(GEM/\d{4}/R/\d+)", text, flags=re.IGNORECASE)
+    if labeled:
+        return labeled.group(1)
+    return _search_pattern(RA_NO_PATTERN, text)
 
 
 def _normalize_pdf_url(href: str) -> str:
@@ -114,7 +141,8 @@ def _extract_date(text: str, label: str) -> Optional[datetime]:
     raw = match.group(1)
     for fmt in ("%d-%m-%Y %I:%M %p", "%d-%m-%Y %H:%M"):
         try:
-            return datetime.strptime(raw, fmt)
+            parsed = datetime.strptime(raw, fmt)
+            return parsed.replace(tzinfo=GEM_TIMEZONE).astimezone(timezone.utc)
         except ValueError:
             continue
     return None
