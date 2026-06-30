@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useDropzone } from "react-dropzone";
-import { ArrowLeft, Check, Plus, UploadCloud, X } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Check, Plus, UploadCloud, X, XCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import StepHeader from "@/components/onboarding/StepHeader";
@@ -9,12 +9,15 @@ import { getCompanyId } from "@/lib/auth";
 import { deleteCompanyDocument, fetchCompanyProfile, uploadCompanyDocuments } from "@/services/tenderAgentApi";
 import { useToastSimple } from "@/components/ui/toaster-simple";
 
+type UploadStatus = "uploading" | "done" | "failed" | "needs_ocr" | "stored";
+
 interface UploadItem {
   localId: string;
   name: string;
   progress: number;
-  status: "uploading" | "done" | "failed";
+  status: UploadStatus;
   fileHash?: string;
+  message?: string | null;
 }
 
 const EXT_COLORS: Record<string, { color: string; label: string }> = {
@@ -81,6 +84,41 @@ const FileTypeIcon = ({ filename }: { filename: string }) => {
   );
 };
 
+const normalizeUploadStatus = (status?: string, filename?: string, textLength?: number): UploadStatus => {
+  if (status === "extracted" || status === "already_exists") return "done";
+  if (status === "needs_ocr") return "needs_ocr";
+  if (status === "stored_only") return "stored";
+  if (status === "failed" && filename?.toLowerCase().endsWith(".pdf") && (textLength ?? 0) === 0) {
+    return "needs_ocr";
+  }
+  if (status === "failed") return "failed";
+  return "done";
+};
+
+const getStatusText = (item: UploadItem) => {
+  if (item.status === "uploading") return `${item.progress}%`;
+  if (item.status === "done") return "Ready";
+  if (item.status === "needs_ocr") return "Needs OCR";
+  if (item.status === "stored") return "Stored";
+  return "Failed";
+};
+
+const getStatusMessage = (item: UploadItem) => {
+  if (item.message) return item.message;
+  if (item.status === "needs_ocr") return "No selectable text found. Upload an OCR/searchable copy.";
+  if (item.status === "failed") return "Text extraction failed.";
+  if (item.status === "stored") return "Stored only; this file is not used for profile text.";
+  return null;
+};
+
+const getBarColor = (status: UploadStatus) => {
+  if (status === "done") return "#16A34A";
+  if (status === "needs_ocr") return "#D97706";
+  if (status === "failed") return "#DC2626";
+  if (status === "stored") return "#64748B";
+  return "#4040E0";
+};
+
 const UploadDocuments = () => {
   const navigate = useNavigate();
   const { pushToast } = useToastSimple();
@@ -101,8 +139,9 @@ const UploadDocuments = () => {
           localId: file.file_hash,
           name: file.original_name,
           progress: 100,
-          status: "done" as const,
+          status: normalizeUploadStatus(file.extract_status, file.original_name, file.extracted_text_len),
           fileHash: file.file_hash,
+          message: file.extract_error,
         }));
         setItems(existing);
       })
@@ -130,16 +169,33 @@ const UploadDocuments = () => {
               ? {
                   ...item,
                   progress: 100,
-                  status: uploadedFile?.status === "failed" ? "failed" : "done",
+                  status: normalizeUploadStatus(
+                    uploadedFile?.extract_status || uploadedFile?.status,
+                    uploadedFile?.original_name || file.name,
+                    uploadedFile?.extracted_text_len
+                  ),
                   fileHash: uploadedFile?.file_hash,
+                  message: uploadedFile?.extract_error,
                 }
               : item
           )
         );
+        const status = normalizeUploadStatus(
+          uploadedFile?.extract_status || uploadedFile?.status,
+          uploadedFile?.original_name || file.name,
+          uploadedFile?.extracted_text_len
+        );
+        if (status === "needs_ocr") {
+          pushToast("No selectable text found. Upload an OCR/searchable copy.", "info");
+        } else if (status === "failed") {
+          pushToast("Text extraction failed for this file.", "error");
+        }
       } catch {
         setItems((prev) =>
           prev.map((item) =>
-            item.localId === localId ? { ...item, progress: 0, status: "failed" } : item
+            item.localId === localId
+              ? { ...item, progress: 100, status: "failed", message: "Upload failed." }
+              : item
           )
         );
       }
@@ -166,8 +222,8 @@ const UploadDocuments = () => {
     multiple: true,
   });
 
-  const uploadedCount = items.filter((item) => item.status === "done").length;
-  const canContinue = uploadedCount > 0;
+  const usableDocumentCount = items.filter((item) => item.status === "done").length;
+  const canContinue = usableDocumentCount > 0;
 
   return (
     <AuthShell>
@@ -201,15 +257,43 @@ const UploadDocuments = () => {
                   <div className="flex-1">
                     <div className="flex items-center justify-between">
                       <p className="text-sm text-[#252a39]">{item.name}</p>
-                      <p className="text-xs text-[#757d91]">{item.progress}%</p>
+                      <p className="text-xs text-[#757d91]">{getStatusText(item)}</p>
                     </div>
+                    {getStatusMessage(item) && (
+                      <p className="mt-0.5 text-xs text-[#8a5a12]">{getStatusMessage(item)}</p>
+                    )}
                     <div className="mt-1 h-[4px] rounded-full bg-[#d8dded]">
-                      <div className="h-full rounded-full bg-[#4040E0]" style={{ width: `${item.progress}%` }} />
+                      <div
+                        className="h-full rounded-full"
+                        style={{ width: `${item.progress}%`, backgroundColor: getBarColor(item.status) }}
+                      />
                     </div>
                   </div>
                   {item.status === "done" ? (
                     <div className="flex items-center gap-2">
                       <Check className="text-green-600" size={18} />
+                      <button
+                        onClick={() => removeItem(item)}
+                        title="Remove file"
+                        className="flex h-6 w-6 items-center justify-center rounded-full hover:bg-[#F3F4F6]"
+                      >
+                        <X size={14} className="text-[#9CA3AF] hover:text-[#EF4444]" />
+                      </button>
+                    </div>
+                  ) : item.status === "needs_ocr" ? (
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="text-amber-600" size={18} />
+                      <button
+                        onClick={() => removeItem(item)}
+                        title="Remove file"
+                        className="flex h-6 w-6 items-center justify-center rounded-full hover:bg-[#F3F4F6]"
+                      >
+                        <X size={14} className="text-[#9CA3AF] hover:text-[#EF4444]" />
+                      </button>
+                    </div>
+                  ) : item.status === "failed" ? (
+                    <div className="flex items-center gap-2">
+                      <XCircle className="text-red-600" size={18} />
                       <button
                         onClick={() => removeItem(item)}
                         title="Remove file"
@@ -230,6 +314,11 @@ const UploadDocuments = () => {
             <button onClick={open} className="mt-4 text-sm text-[#4040E0]">
               <Plus size={14} className="mr-1 inline" /> Add more files
             </button>
+            {items.length > 0 && usableDocumentCount === 0 && (
+              <p className="mt-3 text-xs text-[#8a5a12]">
+                Add at least one searchable document so the profile can use document text.
+              </p>
+            )}
           </div>
         )}
 

@@ -125,6 +125,7 @@ class CompanyService:
         ensure_dir(company_dir)
 
         existing_files = profile.get("uploaded_files", [])
+        existing_by_hash = {item.get("file_hash"): item for item in existing_files}
         existing_hashes = {item.get("file_hash") for item in existing_files}
         current_total_size = sum(int(item.get("size_bytes") or 0) for item in existing_files)
 
@@ -152,21 +153,34 @@ class CompanyService:
 
             file_hash = sha256_file(local_path)
             if file_hash in existing_hashes:
+                existing_item = existing_by_hash.get(file_hash) or {}
                 os.remove(local_path)
                 uploaded_items.append(
                     {
                         "file_hash": file_hash,
-                        "original_name": file.filename,
+                        "original_name": existing_item.get("original_name") or file.filename,
                         "status": "already_exists",
+                        "size_bytes": existing_item.get("size_bytes"),
+                        "extract_status": existing_item.get("extract_status"),
+                        "extract_error": existing_item.get("extract_error"),
+                        "extracted_text_len": existing_item.get("extracted_text_len", 0),
                     }
                 )
                 continue
 
             extracted_text = None
+            extract_error = None
             extract_status = "stored_only"
             if is_extractable_file(file.filename):
                 extracted_text = self.document_extractor.extract_text(local_path)
-                extract_status = "extracted" if extracted_text else "failed"
+                if extracted_text:
+                    extract_status = "extracted"
+                elif self.document_extractor.needs_ocr(local_path):
+                    extract_status = "needs_ocr"
+                    extract_error = "No selectable text found. OCR is required."
+                else:
+                    extract_status = "failed"
+                    extract_error = "No extractable text found."
 
             item = {
                 "file_hash": file_hash,
@@ -176,10 +190,12 @@ class CompanyService:
                 "size_bytes": file_size,
                 "uploaded_at": utcnow(),
                 "extract_status": extract_status,
+                "extract_error": extract_error,
                 "extracted_text_len": len(extracted_text or ""),
                 "extracted_text": extracted_text,
             }
             existing_files.append(item)
+            existing_by_hash[file_hash] = item
             existing_hashes.add(file_hash)
             current_total_size += file_size
 
@@ -190,6 +206,7 @@ class CompanyService:
                     "status": extract_status,
                     "size_bytes": file_size,
                     "extract_status": extract_status,
+                    "extract_error": extract_error,
                     "extracted_text_len": len(extracted_text or ""),
                 }
             )
@@ -221,12 +238,12 @@ class CompanyService:
             },
         )
 
-        # Auto-trigger profile rebuild if any genuinely new files were added
-        new_files_added = any(
-            item.get("status") not in ("already_exists",) for item in uploaded_items
+        # Auto-trigger profile rebuild only when newly uploaded files added usable text.
+        usable_files_added = any(
+            item.get("status") == "extracted" for item in uploaded_items
         )
         reprocessing = False
-        if new_files_added:
+        if usable_files_added:
             reprocessing = True
             asyncio.create_task(
                 self._process_company_profile(

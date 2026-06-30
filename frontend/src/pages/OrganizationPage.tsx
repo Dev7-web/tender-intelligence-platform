@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useDropzone } from "react-dropzone";
-import { Check, ChevronRight, Info, Paperclip, Pencil, Plus, UploadCloud, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronRight, Info, Paperclip, Pencil, Plus, UploadCloud, X, XCircle } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 
@@ -31,14 +31,17 @@ const extColor: Record<string, string> = {
   pptx: "#f59e0b",
 };
 
+type UploadStatus = "uploading" | "done" | "failed" | "needs_ocr" | "stored";
+
 /* ── upload item type ──────────────────────────── */
 interface UploadItem {
   localId: string;
   name: string;
   progress: number;
-  status: "uploading" | "done" | "failed";
+  status: UploadStatus;
   fileHash?: string;
   sizeBytes?: number;
+  message?: string | null;
 }
 
 /* ── tag chip with remove ──────────────────────── */
@@ -99,6 +102,33 @@ const formatBytes = (bytes?: number) => {
   if (bytes < 1024) return `${bytes} b`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} kb`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} mb`;
+};
+
+const normalizeUploadStatus = (status?: string, filename?: string, textLength?: number): UploadStatus => {
+  if (status === "extracted" || status === "already_exists") return "done";
+  if (status === "needs_ocr") return "needs_ocr";
+  if (status === "stored_only") return "stored";
+  if (status === "failed" && filename?.toLowerCase().endsWith(".pdf") && (textLength ?? 0) === 0) {
+    return "needs_ocr";
+  }
+  if (status === "failed") return "failed";
+  return "done";
+};
+
+const getStatusText = (item: UploadItem) => {
+  if (item.status === "uploading") return `${item.progress}%`;
+  if (item.status === "done") return formatBytes(item.sizeBytes) || "Ready";
+  if (item.status === "needs_ocr") return "Needs OCR";
+  if (item.status === "stored") return "Stored";
+  return "Failed";
+};
+
+const getStatusMessage = (item: UploadItem) => {
+  if (item.message) return item.message;
+  if (item.status === "needs_ocr") return "No selectable text found. Upload an OCR/searchable copy.";
+  if (item.status === "failed") return "Text extraction failed.";
+  if (item.status === "stored") return "Stored only; this file is not used for profile text.";
+  return null;
 };
 
 /* ── field component (outside to preserve focus) ── */
@@ -187,9 +217,10 @@ const OrganizationPage = () => {
         localId: f.file_hash,
         name: f.original_name,
         progress: 100,
-        status: "done" as const,
+        status: normalizeUploadStatus(f.extract_status, f.original_name, f.extracted_text_len),
         fileHash: f.file_hash,
         sizeBytes: f.size_bytes,
+        message: f.extract_error,
       }))
     );
   }, [company]);
@@ -243,25 +274,37 @@ const OrganizationPage = () => {
             setFileItems((prev) => prev.map((i) => (i.localId === localId ? { ...i, progress: pct } : i)));
           });
           const uploaded = response.files?.[0];
+          const status = normalizeUploadStatus(
+            uploaded?.extract_status || uploaded?.status,
+            uploaded?.original_name || file.name,
+            uploaded?.extracted_text_len
+          );
           setFileItems((prev) =>
             prev.map((i) =>
               i.localId === localId
                 ? {
                     ...i,
                     progress: 100,
-                    status: uploaded?.status === "failed" ? "failed" : "done",
+                    status,
                     fileHash: uploaded?.file_hash,
                     sizeBytes: uploaded?.size_bytes,
+                    message: uploaded?.extract_error,
                   }
                 : i
             )
           );
-          if (response.reprocessing) {
+          if (status === "needs_ocr") {
+            pushToast("No selectable text found. Upload an OCR/searchable copy.", "info");
+          } else if (status === "failed") {
+            pushToast("Text extraction failed for this file.", "error");
+          } else if (response.reprocessing) {
             pushToast("File uploaded. Rebuilding company profile in background...", "success");
           }
         } catch {
           setFileItems((prev) =>
-            prev.map((i) => (i.localId === localId ? { ...i, progress: 0, status: "failed" } : i))
+            prev.map((i) =>
+              i.localId === localId ? { ...i, progress: 100, status: "failed", message: "Upload failed." } : i
+            )
           );
         }
       }
@@ -415,10 +458,11 @@ const OrganizationPage = () => {
                         <div className="flex-1">
                           <div className="flex items-center justify-between">
                             <p className="text-sm text-[#252a39]">{item.name}</p>
-                            <p className="text-xs text-[#757d91]">
-                              {item.status === "done" ? formatBytes(item.sizeBytes) : `${item.progress}%`}
-                            </p>
+                            <p className="text-xs text-[#757d91]">{getStatusText(item)}</p>
                           </div>
+                          {getStatusMessage(item) && (
+                            <p className="mt-0.5 text-xs text-[#8a5a12]">{getStatusMessage(item)}</p>
+                          )}
                           {item.status === "uploading" && (
                             <div className="mt-1 h-[4px] rounded-full bg-[#d8dded]">
                               <div
@@ -432,6 +476,28 @@ const OrganizationPage = () => {
                         {item.status === "done" ? (
                           <div className="flex items-center gap-2">
                             <Check className="text-green-600" size={18} />
+                            <button
+                              onClick={() => removeFile(item)}
+                              title="Remove file"
+                              className="flex h-6 w-6 items-center justify-center rounded-full hover:bg-[#F3F4F6]"
+                            >
+                              <X size={14} className="text-[#9CA3AF] hover:text-[#EF4444]" />
+                            </button>
+                          </div>
+                        ) : item.status === "needs_ocr" ? (
+                          <div className="flex items-center gap-2">
+                            <AlertTriangle className="text-amber-600" size={18} />
+                            <button
+                              onClick={() => removeFile(item)}
+                              title="Remove file"
+                              className="flex h-6 w-6 items-center justify-center rounded-full hover:bg-[#F3F4F6]"
+                            >
+                              <X size={14} className="text-[#9CA3AF] hover:text-[#EF4444]" />
+                            </button>
+                          </div>
+                        ) : item.status === "failed" ? (
+                          <div className="flex items-center gap-2">
+                            <XCircle className="text-red-600" size={18} />
                             <button
                               onClick={() => removeFile(item)}
                               title="Remove file"

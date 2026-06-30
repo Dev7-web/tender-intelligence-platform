@@ -93,6 +93,32 @@ class DocumentExtractor:
         text = "\n".join(text_parts)
         return self._clean_text(text)
 
+    def needs_ocr(self, path: str) -> bool:
+        """Return True when a PDF has pages/images but no selectable text."""
+        if not path or os.path.splitext(path.lower())[1] != ".pdf" or not os.path.exists(path):
+            return False
+
+        try:
+            doc = fitz.open(path)
+        except Exception as exc:
+            logger.info("pdf.ocr_check_open_failed", path=path, error=str(exc))
+            return False
+
+        try:
+            if doc.is_encrypted or doc.page_count == 0:
+                return False
+
+            has_image_content = False
+            for page in doc:
+                if page.get_text("text").strip():
+                    return False
+                if page.get_images(full=True):
+                    has_image_content = True
+
+            return has_image_content
+        finally:
+            doc.close()
+
     def _extract_docx(self, path: str) -> Optional[str]:
         """Extract text from DOCX/DOC files."""
         try:

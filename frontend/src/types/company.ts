@@ -3,6 +3,10 @@ export interface UploadedFile {
   original_name: string;
   local_path: string;
   uploaded_at: string;
+  extract_status?: string;
+  extract_error?: string | null;
+  extracted_text_len?: number;
+  size_bytes?: number;
 }
 
 export interface CompanyMetadata {

@@ -23,6 +23,7 @@ export interface CompanyProfile {
     size_bytes?: number;
     uploaded_at: string;
     extract_status?: string;
+    extract_error?: string | null;
     extracted_text_len?: number;
   }>;
   status?: {
