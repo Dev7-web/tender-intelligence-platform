@@ -1,37 +1,48 @@
 import { useEffect, useState } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 
-import { onAuthStateChanged, User } from "firebase/auth";
-import { auth } from "@/firebase";
+import { getToken, setUser } from "@/lib/auth";
+import { fetchMe } from "@/services/tenderAgentApi";
+
+// AUTH MIGRATION (Firebase -> central auth gateway):
+// Admin access is gated on the `is_admin` flag from the synced profile
+// (/auth/me), which the backend derives from the gateway JWT `role` claim —
+// replacing the old Firebase custom-claim check.
+
+type Status = "checking" | "admin" | "denied";
 
 const AdminProtectedRoute = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [checking, setChecking] = useState(true);
+  const [status, setStatus] = useState<Status>("checking");
   const location = useLocation();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setUser(firebaseUser);
-      if (!firebaseUser) {
-        setIsAdmin(false);
-        setChecking(false);
-        return;
-      }
+    let cancelled = false;
 
-      try {
-        const tokenResult = await firebaseUser.getIdTokenResult(true);
-        setIsAdmin(tokenResult.claims.admin === true);
-      } catch {
-        setIsAdmin(false);
-      } finally {
-        setChecking(false);
-      }
-    });
-    return unsubscribe;
+    if (!getToken()) {
+      setStatus("denied");
+      return;
+    }
+
+    fetchMe()
+      .then((user) => {
+        if (cancelled) return;
+        if (user?.is_admin) {
+          setUser(user);
+          setStatus("admin");
+        } else {
+          setStatus("denied");
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setStatus("denied");
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  if (checking) {
+  if (status === "checking") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f5f6f9]">
         <p className="text-[#68708a]">Loading...</p>
@@ -39,7 +50,7 @@ const AdminProtectedRoute = () => {
     );
   }
 
-  if (!user || !isAdmin) {
+  if (status === "denied") {
     return <Navigate to="/admin/login" replace state={{ from: location }} />;
   }
 

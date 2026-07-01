@@ -1,23 +1,45 @@
 import { useEffect, useState } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
-import { onAuthStateChanged, User } from "firebase/auth";
 
-import { auth } from "@/firebase";
+import { getToken, setUser } from "@/lib/auth";
+import { fetchMe } from "@/services/tenderAgentApi";
+
+// AUTH MIGRATION (Firebase -> central auth gateway):
+// Access is gated on the presence of a valid gateway token rather than a live
+// Firebase auth listener. On mount we validate the stored token via /auth/me
+// (which also refreshes the cached profile); an invalid/expired token fails the
+// check and redirects to /auth.
+
+type Status = "checking" | "authed" | "unauthed";
 
 const ProtectedRoute = () => {
-  const [user, setUser] = useState<User | null>(null);
-  const [checking, setChecking] = useState(true);
+  const [status, setStatus] = useState<Status>("checking");
   const location = useLocation();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      setUser(firebaseUser);
-      setChecking(false);
-    });
-    return unsubscribe;
+    let cancelled = false;
+
+    if (!getToken()) {
+      setStatus("unauthed");
+      return;
+    }
+
+    fetchMe()
+      .then((user) => {
+        if (cancelled) return;
+        setUser(user);
+        setStatus("authed");
+      })
+      .catch(() => {
+        if (!cancelled) setStatus("unauthed");
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  if (checking) {
+  if (status === "checking") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#f5f6f9]">
         <p className="text-[#68708a]">Loading...</p>
@@ -25,7 +47,7 @@ const ProtectedRoute = () => {
     );
   }
 
-  if (!user) {
+  if (status === "unauthed") {
     return <Navigate to="/auth" replace state={{ from: location }} />;
   }
 

@@ -1,6 +1,9 @@
 import axios from "axios";
 
-import { getIdToken } from "@/lib/firebaseAuth";
+// AUTH MIGRATION: attach the stored auth-gateway id_token instead of the
+// Firebase ID token. The x-admin-key header is retained (backend /admin still
+// requires it alongside the role-based is_admin check).
+import { getToken } from "@/lib/auth";
 
 const BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1";
 const ADMIN_KEY = import.meta.env.VITE_ADMIN_API_KEY || "tender-admin-secret";
@@ -10,8 +13,8 @@ const client = axios.create({
   headers: { "x-admin-key": ADMIN_KEY },
 });
 
-client.interceptors.request.use(async (config) => {
-  const token = await getIdToken();
+client.interceptors.request.use((config) => {
+  const token = getToken();
   if (token) {
     config.headers = config.headers || {};
     config.headers.Authorization = `Bearer ${token}`;

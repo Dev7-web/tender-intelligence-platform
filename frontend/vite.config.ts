@@ -2,9 +2,8 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
 
-// Dummy
-
 export default defineConfig({
+   base: "/tender-frontend/",
   plugins: [react()],
   resolve: {
     alias: {
@@ -12,8 +11,6 @@ export default defineConfig({
     },
   },
   server: {
-    host: true,
     port: 5173,
-    allowedHosts: [".ngrok-free.dev", ".ngrok-free.app"],
   },
 });

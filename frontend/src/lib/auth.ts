@@ -8,6 +8,8 @@ export interface AuthUser {
   location?: string;
   about_me?: string;
   company_id?: string | null;
+  is_admin?: boolean;
+  is_active?: boolean;
   notification_preferences?: {
     tender_updates?: boolean;
     matching_tenders?: boolean;
@@ -16,6 +18,7 @@ export interface AuthUser {
 }
 
 const TOKEN_KEY = "ta_token";
+const REFRESH_TOKEN_KEY = "ta_refresh_token";
 const USER_KEY = "ta_user";
 const COMPANY_KEY = "ta_company_id";
 
@@ -25,10 +28,18 @@ export const setToken = (token: string) => {
   localStorage.setItem(TOKEN_KEY, token);
 };
 
+// Refresh token issued by the central auth gateway (mirrors main-dashboard).
+export const getRefreshToken = () => localStorage.getItem(REFRESH_TOKEN_KEY);
+
+export const setRefreshToken = (token: string) => {
+  localStorage.setItem(REFRESH_TOKEN_KEY, token);
+};
+
 export type AuthClearReason = "manual" | "session-expired" | "unknown";
 
 export const clearAuth = (reason: AuthClearReason = "unknown") => {
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
   localStorage.removeItem(COMPANY_KEY);
 

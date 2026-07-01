@@ -20,7 +20,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <ToastProviderSimple>
-        <BrowserRouter>
+       <BrowserRouter basename="/tender-frontend">
           <App />
         </BrowserRouter>
       </ToastProviderSimple>

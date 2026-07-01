@@ -2,9 +2,13 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 
-import { auth } from "@/firebase";
-import { adminSignIn } from "@/lib/adminAuth";
-import { signOutUser } from "@/lib/firebaseAuth";
+import { clearAuth, setRefreshToken, setToken, setUser } from "@/lib/auth";
+import { fetchMe, login } from "@/services/tenderAgentApi";
+
+// AUTH MIGRATION (Firebase -> central auth gateway):
+// Admin login uses the same gateway login as regular users; admin authorization
+// is decided by the `is_admin` flag on the synced profile (from /auth/me),
+// which the backend derives from the gateway JWT `role == "admin"` claim.
 
 const AdminLoginPage = () => {
   const [email, setEmail] = useState("");
@@ -23,14 +27,23 @@ const AdminLoginPage = () => {
 
     setLoading(true);
     try {
-      await adminSignIn(email.trim().toLowerCase(), password);
-      const tokenResult = await auth.currentUser?.getIdTokenResult(true);
-      const isAdmin = tokenResult?.claims?.admin === true;
-      if (!isAdmin) {
-        await signOutUser();
+      const result = await login({ email: email.trim().toLowerCase(), password });
+      if (!result?.id_token) {
+        setError("Invalid email or password.");
+        return;
+      }
+      setToken(result.id_token);
+      if (result.refresh_token) {
+        setRefreshToken(result.refresh_token);
+      }
+
+      const user = await fetchMe();
+      if (!user?.is_admin) {
+        clearAuth("manual");
         setError("You do not have admin access.");
         return;
       }
+      setUser(user);
       navigate("/admin/dashboard");
     } catch {
       setError("Invalid email or password.");
@@ -94,10 +107,7 @@ const AdminLoginPage = () => {
         </button>
 
         <div className="mt-6 border-t border-[#e8eaf0] pt-4 text-center">
-          <Link
-            to="/auth"
-            className="text-xs text-[#4040E0] hover:text-[#2f2fbc] transition-colors"
-          >
+          <Link to="/auth" className="text-xs text-[#4040E0] hover:text-[#2f2fbc] transition-colors">
             ← Back to main login
           </Link>
         </div>

@@ -30,11 +30,13 @@ numpy
 # Utilities
 python-dotenv
 httpx
+requests
 tenacity
 aiofiles
 python-dateutil
 PyJWT
-firebase-admin
+python-jose[cryptography]  # auth-gateway JWT (JWKS/RS256) verification
+# firebase-admin  # disabled: migrated to central auth gateway
 
 # Scheduling
 apscheduler

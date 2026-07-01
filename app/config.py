@@ -77,7 +77,14 @@ class Settings(BaseSettings):
     JWT_REFRESH_EXPIRES_DAYS: int = 30
     OTP_EXPIRES_MIN: int = 10
     DEV_OTP_CODE: str = "123456"
-    FIREBASE_SERVICE_ACCOUNT_PATH: str = ""
+    FIREBASE_SERVICE_ACCOUNT_PATH: str = ""  # legacy Firebase (no longer used after auth-gateway migration)
+
+    # Central auth gateway (JWKS / RS256) — ported from main-dashboard.
+    # These drive token verification (utils/jwt_auth.py) and the /auth/login,
+    # /auth/refresh proxy endpoints.
+    AUTH_GATEWAY_BASE_URL: str = "https://auth.nervesparks.com"
+    AUTH_GATEWAY_PREFIX: str = "/api/v1/auth"
+    AUTH_JWKS_URL: str = ""  # optional; falls back to BASE_URL + PREFIX + /.well-known/jwks.json
 
     # Email
     EMAIL_PROVIDER: str = "smtp"

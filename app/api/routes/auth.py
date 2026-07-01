@@ -10,11 +10,53 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.api.dependencies import get_current_user, get_db
+from app.api.dependencies import get_current_user, get_db, sync_user_from_claims
 from app.config import settings
 from app.services.auth_service import AuthService
+from app.services.gateway_auth import gateway_login, gateway_refresh
+from app.utils.jwt_auth import verify_auth_gateway_token
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+# ── Central auth gateway (login / refresh) ──────────────────────────────
+# Mirrors main-dashboard: the frontend posts email/password here, the backend
+# proxies to the auth gateway and returns id_token + refresh_token + user.
+class LoginRequest(BaseModel):
+    email: str
+    password: str = Field(min_length=1, max_length=256)
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str
+
+
+async def _tokens_to_response(tokens: Dict[str, Any], db: AsyncIOMotorDatabase) -> Dict[str, Any]:
+    """Verify the freshly-issued gateway token and sync the Mongo user profile."""
+    claims = verify_auth_gateway_token(tokens["id_token"])
+    user = await sync_user_from_claims(db, claims) if claims else None
+    return {
+        "id_token": tokens["id_token"],
+        "refresh_token": tokens.get("refresh_token"),
+        "expires_in": tokens.get("expires_in"),
+        "user": user,
+    }
+
+
+@router.post("/login", response_model=Dict[str, Any])
+async def login(payload: LoginRequest, db: AsyncIOMotorDatabase = Depends(get_db)):
+    tokens = gateway_login(payload.email.strip().lower(), payload.password)
+    if not tokens or not tokens.get("id_token"):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    return await _tokens_to_response(tokens, db)
+
+
+@router.post("/refresh", response_model=Dict[str, Any])
+async def refresh(payload: RefreshRequest, db: AsyncIOMotorDatabase = Depends(get_db)):
+    tokens = gateway_refresh(payload.refresh_token)
+    if not tokens or not tokens.get("id_token"):
+        raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
+    return await _tokens_to_response(tokens, db)
 
 
 class SignupRequest(BaseModel):

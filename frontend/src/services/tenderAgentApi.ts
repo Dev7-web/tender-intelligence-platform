@@ -4,6 +4,27 @@ import { CompanyProfile, DashboardReport, DashboardStats, MatchItem, Tender } fr
 
 type AuthResponse = { token: string; user: AuthUser };
 
+// AUTH MIGRATION: central auth gateway login/refresh. `login` posts
+// email/password to the backend which proxies to the auth gateway and returns
+// { id_token, refresh_token, expires_in, user }.
+type GatewayTokenResponse = {
+  id_token: string;
+  refresh_token?: string | null;
+  expires_in?: number | null;
+  user: AuthUser | null;
+};
+
+export const login = async (payload: { email: string; password: string }) => {
+  const { data } = await api.post<GatewayTokenResponse>("/auth/login", payload);
+  return data;
+};
+
+export const refresh = async (refresh_token: string) => {
+  const { data } = await api.post<GatewayTokenResponse>("/auth/refresh", { refresh_token });
+  return data;
+};
+
+// --- OLD (local email/password auth) — retained but no longer used by the UI ---
 export const authSignUp = async (payload: { email: string; password: string; name?: string }) => {
   const { data } = await api.post<AuthResponse>("/auth/signup", payload);
   return data;
