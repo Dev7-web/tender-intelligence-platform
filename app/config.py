@@ -46,7 +46,7 @@ class Settings(BaseSettings):
 
     # LLM
     LLM_PROVIDER: str = "ollama"
-    LLM_BASE_URL: str = "http://124.123.18.150:11434"
+    LLM_BASE_URL: str = ""
     LLM_MODEL: str = "gpt-oss:latest"
     LLM_TIMEOUT_SECONDS: int = 60
     LLM_INPUT_MAX_CHARS: int = 12000
@@ -127,6 +127,20 @@ class Settings(BaseSettings):
     @property
     def cors_origins_list(self) -> List[str]:
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+
+    def require_llm_base_url(self) -> str:
+        base_url = self.LLM_BASE_URL.strip()
+        if not base_url:
+            provider = self.LLM_PROVIDER.strip().lower() or "ollama"
+            raise ValueError(
+                f"LLM_BASE_URL must be set when LLM_PROVIDER={provider}. "
+                "Set LLM_BASE_URL in .env, for example http://localhost:11434."
+            )
+        return base_url
+
+    def validate_startup(self) -> None:
+        if self.LLM_PROVIDER.strip().lower() in {"ollama", "local"}:
+            self.require_llm_base_url()
 
 
 settings = Settings()

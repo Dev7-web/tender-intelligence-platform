@@ -200,7 +200,7 @@ All backend settings live in the `.env` file. You usually only need to touch a f
 | `MONGO_URI` | Where the database lives | `mongodb://localhost:27017` |
 | `DB_NAME` | The database name | `tender_db` |
 | `LLM_PROVIDER` | Which AI to use: `ollama` or `gemini` | `ollama` |
-| `LLM_BASE_URL` | Address of your Ollama server | `http://localhost:11434` |
+| `LLM_BASE_URL` | Address of your Ollama server, required when `LLM_PROVIDER=ollama` | *(set in `.env`; example `http://localhost:11434`)* |
 | `LLM_MODEL` | The Ollama model name | `gpt-oss:latest` |
 | `GEMINI_API_KEY` | Your Google Gemini key (only if using Gemini) | *(empty)* |
 | `GEMINI_MODEL` | The Gemini model to use | `gemini-1.5-flash` |

@@ -91,6 +91,7 @@ class LLMExtractor:
             genai.configure(api_key=settings.GEMINI_API_KEY)
             self._model = genai.GenerativeModel(settings.GEMINI_MODEL)
         elif self.provider in {"ollama", "local"}:
+            settings.require_llm_base_url()
             self._client = httpx.Client(timeout=settings.LLM_TIMEOUT_SECONDS)
         else:
             raise ValueError(f"Unsupported LLM_PROVIDER: {settings.LLM_PROVIDER}")
@@ -246,7 +247,7 @@ class LLMExtractor:
                 return response.text
 
             payload = {"model": settings.LLM_MODEL, "prompt": prompt, "stream": False}
-            url = settings.LLM_BASE_URL.rstrip("/") + "/api/generate"
+            url = settings.require_llm_base_url().rstrip("/") + "/api/generate"
             headers = {"Content-Type": "text/plain"}
             response = self._client.post(url, content=json.dumps(payload), headers=headers)
             response.raise_for_status()

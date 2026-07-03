@@ -129,6 +129,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 @app.on_event("startup")
 async def on_startup() -> None:
     configure_logging(settings.LOG_LEVEL)
+    settings.validate_startup()
     await create_indexes()
     if settings.ENABLE_SCHEDULER:
         start_scheduler()

@@ -21,7 +21,9 @@ def _old_message(index: int):
 
 
 @pytest.mark.asyncio
-async def test_chat_update_keeps_latest_100_messages(fake_db):
+async def test_chat_update_keeps_latest_100_messages(fake_db, monkeypatch):
+    monkeypatch.setattr(settings, "LLM_PROVIDER", "ollama")
+    monkeypatch.setattr(settings, "LLM_BASE_URL", "http://localhost:11434")
     tender_id = ObjectId()
     chat_id = ObjectId()
     company_id = "company-1"
