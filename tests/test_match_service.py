@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from bson import ObjectId
 
 from app.services.match_service import MatchService
 
@@ -165,3 +166,72 @@ async def test_matches_rank_higher_embedding_similarity_first(fake_db):
 
     assert result["items"][0]["tender"]["bid_id"] == "GEM/2026/B/2001"
     assert result["items"][0]["match"]["score"] >= result["items"][1]["match"]["score"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("action", ["saved", "applied"])
+async def test_update_action_rejects_saved_and_applied_for_expired_tender(fake_db, action):
+    service = MatchService(fake_db)
+    tender_id = ObjectId()
+    await fake_db.get_collection("tenders").insert_one(
+        {
+            "_id": tender_id,
+            "expired": True,
+            "is_active": True,
+        }
+    )
+
+    with pytest.raises(ValueError, match="expired"):
+        await service.update_action(
+            company_id="company-1",
+            user_id="user-1",
+            tender_id=str(tender_id),
+            action=action,
+        )
+
+    stored_action = await fake_db.get_collection("tender_actions").find_one(
+        {"company_id": "company-1", "tender_id": str(tender_id)}
+    )
+    assert stored_action is None
+
+
+@pytest.mark.asyncio
+async def test_update_action_allows_discard_cleanup_for_expired_tender(fake_db):
+    service = MatchService(fake_db)
+    tender_id = ObjectId()
+    await fake_db.get_collection("tenders").insert_one(
+        {
+            "_id": tender_id,
+            "expired": True,
+            "is_active": True,
+        }
+    )
+    await fake_db.get_collection("tender_actions").insert_one(
+        {
+            "company_id": "company-1",
+            "user_id": "user-1",
+            "tender_id": str(tender_id),
+            "action": "discarded",
+            "updated_at": datetime.now(timezone.utc),
+        }
+    )
+
+    discard_result = await service.update_action(
+        company_id="company-1",
+        user_id="user-1",
+        tender_id=str(tender_id),
+        action="discarded",
+    )
+    clear_result = await service.update_action(
+        company_id="company-1",
+        user_id="user-1",
+        tender_id=str(tender_id),
+        action=None,
+    )
+
+    assert discard_result == {"updated": True, "action": "discarded"}
+    assert clear_result == {"updated": True, "action": None}
+    stored_action = await fake_db.get_collection("tender_actions").find_one(
+        {"company_id": "company-1", "tender_id": str(tender_id)}
+    )
+    assert stored_action is None

@@ -358,6 +358,8 @@ class MatchService:
         tender = await self.tender_repo.get_by_id(tender_id)
         if not tender:
             raise ValueError("Tender not found")
+        if tender.get("expired") is True and action in {"saved", "applied"}:
+            raise ValueError("This tender has expired and can no longer be actioned")
 
         await self.action_repo.set_action(
             company_id=company_id,
