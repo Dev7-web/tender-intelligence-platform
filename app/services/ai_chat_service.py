@@ -97,7 +97,12 @@ class AIChatService:
             await self.chats.update_one(
                 {"_id": chat_doc["_id"]},
                 {
-                    "$push": {"messages": {"$each": [user_msg, ai_msg]}},
+                    "$push": {
+                        "messages": {
+                            "$each": [user_msg, ai_msg],
+                            "$slice": -settings.AI_CHAT_MAX_MESSAGES,
+                        }
+                    },
                     "$set": {"updated_at": utcnow()},
                 },
             )

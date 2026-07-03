@@ -183,6 +183,9 @@ def _apply_update(doc: Dict[str, Any], update: Dict[str, Any]) -> Dict[str, Any]
             current = _nested_get(payload, key) or []
             if isinstance(value, dict) and "$each" in value:
                 current.extend(value["$each"])
+                if "$slice" in value:
+                    slice_size = value["$slice"]
+                    current = current[:slice_size] if slice_size >= 0 else current[slice_size:]
             else:
                 current.append(value)
             _nested_set(payload, key, current)

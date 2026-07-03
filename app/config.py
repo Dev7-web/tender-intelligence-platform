@@ -104,6 +104,7 @@ class Settings(BaseSettings):
 
     # AI chat
     AI_RATE_LIMIT_PER_MIN: int = 20
+    AI_CHAT_MAX_MESSAGES: int = 100
 
     # Admin panel
     ADMIN_API_KEY: str = "tender-admin-secret"
