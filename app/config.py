@@ -95,13 +95,6 @@ class Settings(BaseSettings):
     SMTP_PASS: str = ""
     SENDGRID_API_KEY: str = ""
 
-    # OAuth (optional placeholders for MVP)
-    GOOGLE_CLIENT_ID: str = ""
-    GOOGLE_CLIENT_SECRET: str = ""
-    FACEBOOK_CLIENT_ID: str = ""
-    FACEBOOK_CLIENT_SECRET: str = ""
-    OAUTH_REDIRECT_URL: str = "http://localhost:8000/api/v1/auth/oauth/google/callback"
-
     # Company website scrape
     WEBSITE_SCRAPE_MAX_PAGES: int = 10
     WEBSITE_SCRAPE_TIMEOUT_SECONDS: int = 12

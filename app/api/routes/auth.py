@@ -11,7 +11,6 @@ from pydantic import BaseModel, Field
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.api.dependencies import get_current_user, get_db, sync_user_from_claims
-from app.config import settings
 from app.services.auth_service import AuthService
 from app.services.gateway_auth import gateway_login, gateway_refresh
 from app.utils.jwt_auth import verify_auth_gateway_token
@@ -120,44 +119,6 @@ async def verify_email_auth(payload: VerifyEmailRequest, db: AsyncIOMotorDatabas
         return await service.verify_email_auth(payload.email, payload.otp)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@router.get("/oauth/google/start", response_model=Dict[str, Any])
-async def oauth_google_start():
-    has_credentials = bool(settings.GOOGLE_CLIENT_ID.strip()) and bool(settings.GOOGLE_CLIENT_SECRET.strip())
-    if not has_credentials:
-        return {
-            "enabled": False,
-            "message": "Google OAuth is not configured. Set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, and OAUTH_REDIRECT_URL.",
-        }
-    return {
-        "enabled": False,
-        "message": "Google OAuth callback flow is not implemented yet in this build.",
-    }
-
-
-@router.get("/oauth/google/callback", response_model=Dict[str, Any])
-async def oauth_google_callback():
-    return {
-        "enabled": False,
-        "message": "Google OAuth callback is a placeholder in this MVP build.",
-    }
-
-
-@router.get("/oauth/facebook/start", response_model=Dict[str, Any])
-async def oauth_facebook_start():
-    return {
-        "enabled": False,
-        "message": "Facebook OAuth is not configured in this MVP build.",
-    }
-
-
-@router.get("/oauth/facebook/callback", response_model=Dict[str, Any])
-async def oauth_facebook_callback():
-    return {
-        "enabled": False,
-        "message": "Facebook OAuth callback is a placeholder in this MVP build.",
-    }
 
 
 @router.get("/me", response_model=Dict[str, Any])

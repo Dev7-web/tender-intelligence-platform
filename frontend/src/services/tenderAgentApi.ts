@@ -35,11 +35,6 @@ export const authSignIn = async (payload: { email: string; password: string }) =
   return data;
 };
 
-export const authGoogleStart = async () => {
-  const { data } = await api.get<{ enabled: boolean; message: string; auth_url?: string }>("/auth/oauth/google/start");
-  return data;
-};
-
 export const fetchMe = async () => {
   const { data } = await api.get<{ user: AuthUser }>("/auth/me");
   return data.user;
