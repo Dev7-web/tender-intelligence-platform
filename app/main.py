@@ -17,11 +17,17 @@ from app.api.routes import dashboard, jobs, websocket, admin
 from app.config import settings
 from app.database.mongodb import create_indexes, close_client
 from app.jobs.scheduler import shutdown_scheduler, start_scheduler
-from app.utils.logger import configure_logging
+from app.utils.logger import configure_logging, get_logger
 from app.utils.exceptions import AppError
 
 
-app = FastAPI(title=settings.APP_NAME, debug=settings.DEBUG)
+logger = get_logger(__name__)
+
+# NOTE: `debug` is deliberately NOT wired to settings.DEBUG. Starlette's debug
+# mode renders full tracebacks into HTTP error responses; we never want that on
+# a live server. Unhandled errors are handled by the catch-all handler below,
+# which logs the traceback server-side and returns a generic message.
+app = FastAPI(title=settings.APP_NAME)
 
 app.add_middleware(
     CORSMiddleware,
@@ -93,6 +99,28 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
                 "code": "VALIDATION_ERROR",
                 "message": "Invalid request",
                 "details": details,
+            }
+        },
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    # Log the full error (including traceback) server-side, but never expose
+    # internal details to the client — regardless of the DEBUG setting.
+    logger.error(
+        "unhandled_exception",
+        path=request.url.path,
+        method=request.method,
+        exc_info=exc,
+    )
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": {
+                "code": "INTERNAL_ERROR",
+                "message": "An internal server error occurred.",
+                "details": {},
             }
         },
     )

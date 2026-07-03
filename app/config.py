@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     # Application
     APP_NAME: str = "Tender Agent"
     APP_ENV: str = "development"
-    DEBUG: bool = True
+    DEBUG: bool = False
     LOG_LEVEL: str = "INFO"
 
     # Database
