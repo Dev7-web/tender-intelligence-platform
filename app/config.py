@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     # Database
     MONGO_URI: str = "mongodb://localhost:27017"
     DB_NAME: str = "TendorMatching"
+    # search_history rows auto-expire after this many days (MongoDB TTL index).
+    SEARCH_HISTORY_RETENTION_DAYS: int = 90
 
     # API Keys
     GEMINI_API_KEY: str = ""

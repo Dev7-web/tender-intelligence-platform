@@ -8,6 +8,7 @@ from typing import Optional
 
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from pymongo import ASCENDING, DESCENDING
+from pymongo.errors import OperationFailure
 
 from app.config import settings
 from app.utils.logger import get_logger
@@ -33,6 +34,28 @@ async def close_client() -> None:
     if _client is not None:
         _client.close()
         _client = None
+
+
+async def _ensure_ttl_index(
+    database: AsyncIOMotorDatabase, collection: str, field: str, expire_seconds: int
+) -> None:
+    """Ensure a single-field TTL index on ``field`` with the given expiry.
+
+    Re-running ``create_index`` with a changed ``expireAfterSeconds`` raises an
+    IndexOptionsConflict, so if the index already exists we update it in place
+    via ``collMod``. This keeps the retention window configurable across
+    restarts without crashing startup.
+    """
+    coll = database.get_collection(collection)
+    try:
+        await coll.create_index([(field, ASCENDING)], expireAfterSeconds=expire_seconds)
+    except OperationFailure:
+        await database.command(
+            {
+                "collMod": collection,
+                "index": {"keyPattern": {field: 1}, "expireAfterSeconds": expire_seconds},
+            }
+        )
 
 
 async def create_indexes(db: Optional[AsyncIOMotorDatabase] = None) -> None:
@@ -87,6 +110,14 @@ async def create_indexes(db: Optional[AsyncIOMotorDatabase] = None) -> None:
 
     await database.get_collection("search_history").create_index(
         [("company_id", ASCENDING), ("searched_at", DESCENDING)]
+    )
+    # TTL index: auto-delete search_history rows older than the retention
+    # window so the collection cannot grow without bound (issue #18).
+    await _ensure_ttl_index(
+        database,
+        "search_history",
+        "searched_at",
+        settings.SEARCH_HISTORY_RETENTION_DAYS * 24 * 3600,
     )
     scrape_coll = database.get_collection("scrape_logs")
     await scrape_coll.create_index([("job_id", ASCENDING)], unique=True)
