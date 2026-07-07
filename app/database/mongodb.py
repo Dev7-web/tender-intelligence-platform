@@ -95,6 +95,15 @@ async def create_indexes(db: Optional[AsyncIOMotorDatabase] = None) -> None:
     await otp_coll.create_index([("email", ASCENDING), ("created_at", DESCENDING)])
     await otp_coll.create_index([("expires_at", ASCENDING)])
 
+    auth_rate_limits_coll = database.get_collection("auth_rate_limits")
+    await auth_rate_limits_coll.create_index([("scope", ASCENDING), ("key", ASCENDING), ("ts", DESCENDING)])
+    await _ensure_ttl_index(
+        database,
+        "auth_rate_limits",
+        "ts",
+        max(settings.AUTH_RATE_LIMIT_IP_WINDOW_SECONDS, settings.AUTH_RATE_LIMIT_EMAIL_WINDOW_SECONDS),
+    )
+
     actions_coll = database.get_collection("tender_actions")
     await actions_coll.create_index([("company_id", ASCENDING), ("tender_id", ASCENDING)], unique=True)
     await actions_coll.create_index([("company_id", ASCENDING), ("action", ASCENDING)])

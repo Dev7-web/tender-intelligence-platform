@@ -6,11 +6,12 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.api.dependencies import get_current_user, get_db, sync_user_from_claims
+from app.services.auth_rate_limiter import AuthRateLimiter
 from app.services.auth_service import AuthService
 from app.services.gateway_auth import gateway_login, gateway_refresh
 from app.utils.jwt_auth import verify_auth_gateway_token
@@ -42,8 +43,19 @@ async def _tokens_to_response(tokens: Dict[str, Any], db: AsyncIOMotorDatabase) 
     }
 
 
+async def _enforce_auth_rate_limit(
+    db: AsyncIOMotorDatabase,
+    request: Request,
+    action: str,
+    email: str | None,
+) -> None:
+    limiter = AuthRateLimiter(db)
+    await limiter.enforce_auth_limit(request=request, action=action, email=email)
+
+
 @router.post("/login", response_model=Dict[str, Any])
-async def login(payload: LoginRequest, db: AsyncIOMotorDatabase = Depends(get_db)):
+async def login(request: Request, payload: LoginRequest, db: AsyncIOMotorDatabase = Depends(get_db)):
+    await _enforce_auth_rate_limit(db, request, action="password", email=payload.email)
     tokens = gateway_login(payload.email.strip().lower(), payload.password)
     if not tokens or not tokens.get("id_token"):
         raise HTTPException(status_code=401, detail="Invalid email or password")
@@ -79,7 +91,8 @@ class VerifyEmailRequest(BaseModel):
 
 
 @router.post("/signup", response_model=Dict[str, Any])
-async def signup(payload: SignupRequest, db: AsyncIOMotorDatabase = Depends(get_db)):
+async def signup(request: Request, payload: SignupRequest, db: AsyncIOMotorDatabase = Depends(get_db)):
+    await _enforce_auth_rate_limit(db, request, action="signup", email=payload.email)
     service = AuthService(db)
     try:
         return await service.signup_with_password(
@@ -92,7 +105,8 @@ async def signup(payload: SignupRequest, db: AsyncIOMotorDatabase = Depends(get_
 
 
 @router.post("/signin", response_model=Dict[str, Any])
-async def signin(payload: SigninRequest, db: AsyncIOMotorDatabase = Depends(get_db)):
+async def signin(request: Request, payload: SigninRequest, db: AsyncIOMotorDatabase = Depends(get_db)):
+    await _enforce_auth_rate_limit(db, request, action="password", email=payload.email)
     service = AuthService(db)
     try:
         return await service.signin_with_password(
@@ -104,7 +118,8 @@ async def signin(payload: SigninRequest, db: AsyncIOMotorDatabase = Depends(get_
 
 
 @router.post("/email/start", response_model=Dict[str, Any])
-async def start_email_auth(payload: StartEmailRequest, db: AsyncIOMotorDatabase = Depends(get_db)):
+async def start_email_auth(request: Request, payload: StartEmailRequest, db: AsyncIOMotorDatabase = Depends(get_db)):
+    await _enforce_auth_rate_limit(db, request, action="otp_start", email=payload.email)
     service = AuthService(db)
     try:
         return await service.start_email_auth(payload.email)

@@ -218,6 +218,7 @@ All backend settings live in the `.env` file. You usually only need to touch a f
 | `AUTH_GATEWAY_PREFIX` | The path prefix for the gateway |
 | `AUTH_JWKS_URL` | Where the app fetches keys to verify login tokens |
 | `JWT_SECRET` | Required secret for local tokens; must be a unique random value with at least 32 characters |
+| `AUTH_RATE_LIMIT_*` | Per-IP and per-email limits for login, signup, and OTP-start endpoints |
 
 **Email (for the "share tender" feature):**
 

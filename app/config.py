@@ -124,6 +124,12 @@ class Settings(BaseSettings):
     AI_RATE_LIMIT_WINDOW_SECONDS: int = 60
     AI_CHAT_MAX_MESSAGES: int = 100
 
+    # Auth rate limiting
+    AUTH_RATE_LIMIT_IP_REQUESTS: int = 10
+    AUTH_RATE_LIMIT_IP_WINDOW_SECONDS: int = 60
+    AUTH_RATE_LIMIT_EMAIL_REQUESTS: int = 5
+    AUTH_RATE_LIMIT_EMAIL_WINDOW_SECONDS: int = 15 * 60
+
     # Admin panel
     ADMIN_API_KEY: str = "tender-admin-secret"
 
