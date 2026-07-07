@@ -1,11 +1,22 @@
 version: "3.9"
 
+# Before running, define these in a local .env file (never commit it):
+#   MONGO_ROOT_USERNAME=admin
+#   MONGO_ROOT_PASSWORD=<a strong, unique password>
+# Compose reads .env automatically and injects the values below.
+
 services:
   mongodb:
     image: mongo:6
     restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:?set MONGO_ROOT_USERNAME in .env}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?set MONGO_ROOT_PASSWORD in .env}
+    # Bind to loopback only so the database is not reachable from the wider
+    # network. The app talks to it over the internal compose network regardless,
+    # so you can drop this mapping entirely if you don't need host access.
     ports:
-      - "27017:27017"
+      - "127.0.0.1:27017:27017"
     volumes:
       - mongo_data:/data/db
 
@@ -15,13 +26,22 @@ services:
     env_file:
       - .env
     environment:
-      - MONGO_URI=mongodb://mongodb:27017
+      # Overrides MONGO_URI from .env; connects with the credentials above.
+      - MONGO_URI=mongodb://${MONGO_ROOT_USERNAME}:${MONGO_ROOT_PASSWORD}@mongodb:27017/?authSource=admin
     ports:
       - "8000:8000"
     depends_on:
       - mongodb
-    volumes:
-      - ./:/app
+    # No bind-mount: the image is built with `COPY . ./` (see Dockerfile), so the
+    # container runs a self-contained, reproducible copy of the code and never
+    # exposes host-only files like .env or .git.
+    #
+    # For local live-reload during development, create a docker-compose.override.yml
+    # that mounts only the source, e.g.:
+    #   services:
+    #     app:
+    #       volumes:
+    #         - ./app:/app/app
 
 volumes:
   mongo_data:
