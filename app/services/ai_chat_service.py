@@ -4,9 +4,8 @@ Tender-grounded AI chat service.
 
 from __future__ import annotations
 
-from collections import defaultdict, deque
-from datetime import datetime, timezone
-from typing import Any, Deque, Dict, List, Optional
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional
 
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -32,13 +31,12 @@ def utcnow() -> datetime:
 
 
 class AIChatService:
-    _rate_limiter: Dict[str, Deque[datetime]] = defaultdict(deque)
-
     def __init__(self, db: AsyncIOMotorDatabase) -> None:
         self.db = db
         self.tenders = db.get_collection("tenders")
         self.companies = db.get_collection("company_profiles")
         self.chats = db.get_collection("tender_chats")
+        self.rate_limits = db.get_collection("ai_chat_rate_limits")
         self.llm = LLMExtractor()
 
     def get_suggestions(self) -> List[str]:
@@ -55,7 +53,7 @@ class AIChatService:
         if not message.strip():
             raise ValueError("Message is required")
 
-        self._check_rate_limit(owner_user_id)
+        await self._check_rate_limit(owner_user_id)
 
         tender = await self.tenders.find_one({"_id": ObjectId(tender_id)})
         if not tender:
@@ -164,13 +162,12 @@ Recent Chat:
 User question: {user_message}
 """.strip()
 
-    def _check_rate_limit(self, owner_user_id: str) -> None:
+    async def _check_rate_limit(self, owner_user_id: str) -> None:
         now = utcnow()
-        window = self._rate_limiter[owner_user_id]
-        while window and (now - window[0]).total_seconds() > 60:
-            window.popleft()
+        window_start = now - timedelta(seconds=settings.AI_RATE_LIMIT_WINDOW_SECONDS)
+        result = await self.rate_limits.insert_one({"user_id": owner_user_id, "ts": now})
+        count = await self.rate_limits.count_documents({"user_id": owner_user_id, "ts": {"$gte": window_start}})
 
-        if len(window) >= settings.AI_RATE_LIMIT_PER_MIN:
+        if count > settings.AI_RATE_LIMIT_PER_MIN:
+            await self.rate_limits.delete_one({"_id": result.inserted_id})
             raise ValueError("AI chat rate limit exceeded. Please retry in one minute.")
-
-        window.append(now)

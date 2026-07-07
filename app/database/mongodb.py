@@ -104,6 +104,15 @@ async def create_indexes(db: Optional[AsyncIOMotorDatabase] = None) -> None:
     await chats_coll.create_index([("company_id", ASCENDING), ("tender_id", ASCENDING)])
     await chats_coll.create_index([("updated_at", DESCENDING)])
 
+    rate_limits_coll = database.get_collection("ai_chat_rate_limits")
+    await rate_limits_coll.create_index([("user_id", ASCENDING), ("ts", DESCENDING)])
+    await _ensure_ttl_index(
+        database,
+        "ai_chat_rate_limits",
+        "ts",
+        settings.AI_RATE_LIMIT_WINDOW_SECONDS,
+    )
+
     share_logs = database.get_collection("share_logs")
     await share_logs.create_index([("company_id", ASCENDING), ("created_at", DESCENDING)])
     await share_logs.create_index([("tender_id", ASCENDING)])
