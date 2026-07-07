@@ -6,12 +6,16 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import os
 import re
 import uuid
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import pytest
+
+
+os.environ.setdefault("JWT_SECRET", "test-jwt-secret-value-that-is-at-least-32-chars")
 
 
 class SimpleResult:

@@ -2,7 +2,23 @@ from datetime import datetime, timezone
 
 import pytest
 
-from app.services.auth_service import AuthService, decode_access_token, verify_password_hash
+from app.config import settings
+from app.services.auth_service import AuthService, create_access_token, decode_access_token, verify_password_hash
+
+
+TEST_JWT_SECRET = "test-jwt-secret-value-that-is-at-least-32-chars"
+
+
+@pytest.fixture(autouse=True)
+def configure_jwt_secret(monkeypatch):
+    monkeypatch.setattr(settings, "JWT_SECRET", TEST_JWT_SECRET)
+
+
+def test_create_access_token_rejects_weak_jwt_secret(monkeypatch):
+    monkeypatch.setattr(settings, "JWT_SECRET", "change-me")
+
+    with pytest.raises(ValueError, match="JWT_SECRET must be set"):
+        create_access_token("user-id")
 
 
 @pytest.mark.asyncio

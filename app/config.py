@@ -8,11 +8,28 @@ import os
 from typing import List
 
 from pydantic import field_validator
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+MIN_JWT_SECRET_LENGTH = 32
+WEAK_JWT_SECRETS = {
+    "change-me",
+    "change_me",
+    "changeme",
+    "default",
+    "jwt-secret",
+    "password",
+    "replace-me",
+    "secret",
+    "your-secret-key",
+    "your_jwt_secret",
+}
 
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
+
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     # Application
     APP_NAME: str = "Tender Agent"
@@ -74,7 +91,7 @@ class Settings(BaseSettings):
     PROCESS_BATCH_LIMIT: int = 50
 
     # Auth
-    JWT_SECRET: str = "change-me"
+    JWT_SECRET: str
     JWT_EXPIRES_MIN: int = 60
     JWT_REFRESH_EXPIRES_DAYS: int = 30
     OTP_EXPIRES_MIN: int = 10
@@ -120,13 +137,18 @@ class Settings(BaseSettings):
                 return True
         return value
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-
     @property
     def cors_origins_list(self) -> List[str]:
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+
+    def require_jwt_secret(self) -> str:
+        secret = self.JWT_SECRET.strip()
+        if len(secret) < MIN_JWT_SECRET_LENGTH or secret.lower() in WEAK_JWT_SECRETS:
+            raise ValueError(
+                "JWT_SECRET must be set to a strong random value with at least "
+                f"{MIN_JWT_SECRET_LENGTH} characters."
+            )
+        return secret
 
     def require_llm_base_url(self) -> str:
         base_url = self.LLM_BASE_URL.strip()
@@ -139,6 +161,7 @@ class Settings(BaseSettings):
         return base_url
 
     def validate_startup(self) -> None:
+        self.require_jwt_secret()
         if self.LLM_PROVIDER.strip().lower() in {"ollama", "local"}:
             self.require_llm_base_url()
 

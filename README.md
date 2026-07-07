@@ -146,6 +146,7 @@ This copies the example settings into a real settings file you can edit.
 ```powershell
 copy .env.example .env
 ```
+Before starting the backend, edit `.env` and set `JWT_SECRET` to a unique random value with at least 32 characters.
 
 ### 2. Create the frontend configuration file
 ```powershell
@@ -216,7 +217,7 @@ All backend settings live in the `.env` file. You usually only need to touch a f
 | `AUTH_GATEWAY_BASE_URL` | The shared login service (`https://auth.nervesparks.com`) |
 | `AUTH_GATEWAY_PREFIX` | The path prefix for the gateway |
 | `AUTH_JWKS_URL` | Where the app fetches keys to verify login tokens |
-| `JWT_SECRET` | Secret used for local tokens — **change this in production** |
+| `JWT_SECRET` | Required secret for local tokens; must be a unique random value with at least 32 characters |
 
 **Email (for the "share tender" feature):**
 
@@ -224,7 +225,7 @@ All backend settings live in the `.env` file. You usually only need to touch a f
 |---------|---------|
 | `EMAIL_PROVIDER`, `EMAIL_FROM`, `SMTP_*`, `SENDGRID_API_KEY` | Email delivery settings. If these are left empty, sharing runs in **mock mode** — it logs the share event but doesn't actually send an email. |
 
-> ⚠️ **Security reminder:** Before deploying to a real server, change `JWT_SECRET` and `ADMIN_API_KEY` to strong, unique values, and never commit real secrets or service-account files to version control.
+> ⚠️ **Security reminder:** Before deploying to a real server, set `JWT_SECRET` and `ADMIN_API_KEY` to strong, unique values, rotate any tokens issued with old secrets, and never commit real secrets or service-account files to version control.
 
 ---
 

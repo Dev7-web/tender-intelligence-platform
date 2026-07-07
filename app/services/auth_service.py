@@ -79,6 +79,7 @@ def verify_password_hash(password: str, password_hash: str) -> bool:
 
 
 def create_access_token(user_id: str) -> str:
+    jwt_secret = settings.require_jwt_secret()
     expires_at = now_utc() + timedelta(minutes=settings.JWT_EXPIRES_MIN)
     payload = {
         "sub": user_id,
@@ -86,12 +87,12 @@ def create_access_token(user_id: str) -> str:
         "iat": now_utc(),
         "type": "access",
     }
-    return jwt.encode(payload, settings.JWT_SECRET, algorithm="HS256")
+    return jwt.encode(payload, jwt_secret, algorithm="HS256")
 
 
 def decode_access_token(token: str) -> Optional[Dict[str, Any]]:
     try:
-        return jwt.decode(token, settings.JWT_SECRET, algorithms=["HS256"])
+        return jwt.decode(token, settings.require_jwt_secret(), algorithms=["HS256"])
     except jwt.PyJWTError:
         return None
 
