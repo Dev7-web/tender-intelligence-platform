@@ -21,11 +21,21 @@ const TOKEN_KEY = "ta_token";
 const REFRESH_TOKEN_KEY = "ta_refresh_token";
 const USER_KEY = "ta_user";
 const COMPANY_KEY = "ta_company_id";
+// Window events broadcast on auth-state changes so long-lived connections
+// (e.g. the WebSocket client) can react without polling localStorage.
+export const AUTH_TOKEN_EVENT = "ta:auth:token"; // access token set/refreshed
+export const AUTH_CLEARED_EVENT = "ta:auth:cleared"; // logged out / session expired
 
 export const getToken = () => localStorage.getItem(TOKEN_KEY);
 
 export const setToken = (token: string) => {
+  const previous = localStorage.getItem(TOKEN_KEY);
   localStorage.setItem(TOKEN_KEY, token);
+  // Only notify on an actual change (login or refresh), so listeners don't
+  // needlessly reconnect when the same token is re-set.
+  if (previous !== token && typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(AUTH_TOKEN_EVENT, { detail: { token } }));
+  }
 };
 
 // Refresh token issued by the central auth gateway (mirrors main-dashboard).
@@ -44,7 +54,7 @@ export const clearAuth = (reason: AuthClearReason = "unknown") => {
   localStorage.removeItem(COMPANY_KEY);
 
   if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent("ta:auth:cleared", { detail: { reason } }));
+    window.dispatchEvent(new CustomEvent(AUTH_CLEARED_EVENT, { detail: { reason } }));
   }
 };
 
