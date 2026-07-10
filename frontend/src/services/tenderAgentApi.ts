@@ -135,7 +135,7 @@ export const fetchCompanyProfile = async (companyId: string) => {
 
 export const updateCompanyProfile = async (
   companyId: string,
-  updates: Partial<Pick<CompanyProfile, "name" | "company_url" | "experience_years" | "turnover" | "description" | "interest_tags" | "interested_states" | "tender_topics">>
+  updates: Partial<Pick<CompanyProfile, "name" | "company_url" | "experience_years" | "turnover" | "description" | "interest_tags" | "interested_states" | "tender_topics" | "tender_search_keywords">>
 ) => {
   const { data } = await api.patch<CompanyProfile>(`/companies/${companyId}`, updates);
   return data;
@@ -155,8 +155,10 @@ export const fetchDashboardReport = async (range = "12m", companyId?: string) =>
   return data;
 };
 
-export const triggerScrapeAnalyze = async () => {
-  const { data } = await api.post("/jobs/scrape/trigger");
+export const triggerScrapeAnalyze = async (companyId: string) => {
+  const { data } = await api.post<{ triggered: boolean; job_type: string; company_id: string; keywords: string[] }>(
+    `/companies/${companyId}/scrape-tenders`
+  );
   return data;
 };
 

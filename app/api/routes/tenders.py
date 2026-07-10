@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.api.dependencies import get_current_user, get_db
+from app.database.repositories.company_tender_candidate_repo import CompanyTenderCandidateRepository
 from app.services.ai_chat_service import AIChatService
 from app.services.email_service import EmailService
 from app.services.match_service import MatchService
@@ -206,14 +207,23 @@ async def share_tender_by_email(
     if not profile:
         raise HTTPException(status_code=404, detail="Company profile not found")
 
+    tender = None
+    tender_id_candidates: List[Any] = []
     try:
-        object_id = ObjectId(tender_id)
+        tender_id_candidates.append(ObjectId(tender_id))
     except Exception:
-        raise HTTPException(status_code=404, detail="Tender not found")
+        pass
+    tender_id_candidates.append(tender_id)
 
-    tender = await db.get_collection("tenders").find_one({"_id": object_id})
+    for candidate_id in tender_id_candidates:
+        tender = await db.get_collection("tenders").find_one({"_id": candidate_id})
+        if tender:
+            break
     if not tender:
         raise HTTPException(status_code=404, detail="Tender not found")
+    candidate_repo = CompanyTenderCandidateRepository(db)
+    if not await candidate_repo.exists(company_id=payload.company_id, tender_id=str(tender.get("_id"))):
+        raise HTTPException(status_code=400, detail="Tender is not available for this company profile")
 
     action = await db.get_collection("tender_actions").find_one(
         {"company_id": payload.company_id, "tender_id": tender_id}

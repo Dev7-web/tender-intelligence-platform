@@ -8,7 +8,7 @@ import asyncio
 import copy
 import re
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import pytest
@@ -118,6 +118,17 @@ class InMemoryCollection:
                 return SimpleResult(deleted_count=1)
         return SimpleResult(deleted_count=0)
 
+    async def delete_many(self, filters: Dict[str, Any]):
+        kept = []
+        deleted = 0
+        for item in self.docs:
+            if _matches(item, filters):
+                deleted += 1
+            else:
+                kept.append(item)
+        self.docs = kept
+        return SimpleResult(deleted_count=deleted)
+
     async def count_documents(self, filters: Dict[str, Any]):
         return sum(1 for item in self.docs if _matches(item, filters or {}))
 
@@ -183,6 +194,9 @@ def _apply_update(doc: Dict[str, Any], update: Dict[str, Any]) -> Dict[str, Any]
             current = _nested_get(payload, key) or []
             if isinstance(value, dict) and "$each" in value:
                 current.extend(value["$each"])
+                if "$slice" in value:
+                    slice_count = value["$slice"]
+                    current = current[:slice_count] if slice_count >= 0 else current[slice_count:]
             else:
                 current.append(value)
             _nested_set(payload, key, current)
@@ -221,10 +235,12 @@ def _matches(doc: Dict[str, Any], filters: Dict[str, Any]) -> bool:
                     if not re.search(expected, str(actual or ""), flags=flags):
                         return False
                 elif operator == "$gte":
-                    if actual is None or actual < expected:
+                    actual_cmp, expected_cmp = _normalize_comparable(actual, expected)
+                    if actual_cmp is None or actual_cmp < expected_cmp:
                         return False
                 elif operator == "$lt":
-                    if actual is None or actual >= expected:
+                    actual_cmp, expected_cmp = _normalize_comparable(actual, expected)
+                    if actual_cmp is None or actual_cmp >= expected_cmp:
                         return False
                 elif operator == "$options":
                     continue
@@ -233,6 +249,18 @@ def _matches(doc: Dict[str, Any], filters: Dict[str, Any]) -> bool:
                 return False
 
     return True
+
+
+def _normalize_comparable(actual: Any, expected: Any):
+    if isinstance(actual, datetime) and isinstance(expected, datetime):
+        return _as_utc_datetime(actual), _as_utc_datetime(expected)
+    return actual, expected
+
+
+def _as_utc_datetime(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
 
 
 class InMemoryDB:

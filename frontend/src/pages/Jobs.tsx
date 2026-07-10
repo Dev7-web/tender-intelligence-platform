@@ -6,6 +6,7 @@ import JobDetail from "@/components/jobs/JobDetail";
 import JobList from "@/components/jobs/JobList";
 import { useJob, useJobs, useSchedulerStatus, useTriggerProcess, useTriggerScrape } from "@/hooks/useJobs";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import { getCompanyId } from "@/lib/auth";
 
 const Jobs = () => {
   const [selectedJobId, setSelectedJobId] = useState<string | undefined>();
@@ -14,6 +15,7 @@ const Jobs = () => {
   const schedulerStatus = useSchedulerStatus();
   const triggerScrape = useTriggerScrape();
   const triggerProcess = useTriggerProcess();
+  const companyId = getCompanyId() || undefined;
   const queryClient = useQueryClient();
   const wsMessage = useWebSocket();
 
@@ -27,7 +29,7 @@ const Jobs = () => {
   return (
     <div className="space-y-6 animate-rise">
       <JobControls
-        onScrape={() => triggerScrape.mutate()}
+        onScrape={() => triggerScrape.mutate(companyId)}
         onProcess={() => triggerProcess.mutate()}
         schedulerRunning={schedulerStatus.data?.running ?? false}
       />

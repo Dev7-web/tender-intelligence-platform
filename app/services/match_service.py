@@ -9,15 +9,19 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
+from bson import ObjectId
 from dateutil import parser as date_parser
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from app.config import settings
+from app.database.repositories.company_tender_candidate_repo import CompanyTenderCandidateRepository
 from app.database.repositories.company_repo import CompanyRepository
 from app.database.repositories.tender_action_repo import TenderActionRepository
 from app.database.repositories.tender_repo import TenderRepository
 from app.processors.embedder import TextEmbedder
 from app.services.matching_utils import calculate_enhanced_match_score
-from app.services.tender_expiry import active_tender_filter, refresh_expired_flags
+from app.services.tender_relevance import assess_tender_relevance
+from app.services.tender_expiry import is_tender_active, refresh_expired_flags
 
 
 def utcnow() -> datetime:
@@ -112,6 +116,7 @@ class MatchService:
         self.company_repo = CompanyRepository(db)
         self.tender_repo = TenderRepository(db)
         self.action_repo = TenderActionRepository(db)
+        self.candidate_repo = CompanyTenderCandidateRepository(db)
         self.embedder = TextEmbedder()
 
     async def get_company_matches(
@@ -140,78 +145,56 @@ class MatchService:
 
         await refresh_expired_flags(self.tender_repo.collection, now)
 
-        candidate_filter = {
-            **active_tender_filter(now),
-            "is_active": True,
-            "status.llm_processed": True,
-        }
         period = (time_period or "latest").lower()
+        discovered_since = None
         if period == "7d":
-            candidate_filter["scraped_at"] = {"$gte": now - timedelta(days=7)}
+            discovered_since = now - timedelta(days=7)
         elif period == "30d":
-            candidate_filter["scraped_at"] = {"$gte": now - timedelta(days=30)}
+            discovered_since = now - timedelta(days=30)
 
-        if q:
-            words = [w.strip() for w in q.split() if w.strip()]
-            word_conditions = []
-            for word in words:
-                escaped = re.escape(word)
-                regex = {"$regex": escaped, "$options": "i"}
-                word_conditions.append(
-                    {"$or": [{field: regex} for field in SEARCH_FIELDS]}
-                )
-            if word_conditions:
-                candidate_filter.setdefault("$and", []).extend(word_conditions)
+        candidate_docs = await self.candidate_repo.list_for_company(
+            company_id,
+            qualified=True,
+            discovered_since=discovered_since,
+        )
 
-        if state:
-            candidate_filter["metadata.location"] = {"$regex": state, "$options": "i"}
-
-        if city:
-            if "metadata.location" in candidate_filter:
-                candidate_filter["metadata.location"]["$regex"] = f"(?=.*{re.escape(state)})(?=.*{re.escape(city)})"
-            else:
-                candidate_filter["metadata.location"] = {"$regex": city, "$options": "i"}
-
-        if certification:
-            candidate_filter["metadata.required_certifications"] = {"$regex": certification, "$options": "i"}
-
-        if portal:
-            candidate_filter["portal"] = {"$regex": portal, "$options": "i"}
-
-        if procurement:
-            proc_regex = {"$regex": re.escape(procurement), "$options": "i"}
-            candidate_filter.setdefault("$and", []).append(
-                {"$or": [
-                    {"scraped_info.bid_type": proc_regex},
-                    {"metadata.title": proc_regex},
-                    {"metadata.summary": proc_regex},
-                ]}
-            )
-
-        if organisation:
-            org_regex = {"$regex": re.escape(organisation), "$options": "i"}
-            candidate_filter.setdefault("$and", []).append(
-                {"$or": [
-                    {"scraped_info.department": org_regex},
-                    {"metadata.department": org_regex},
-                ]}
-            )
-
-        candidates = await self.tender_repo.list(skip=0, limit=1000, filters=candidate_filter)
+        candidate_pairs = []
+        for candidate_doc in candidate_docs:
+            tender = await self._find_tender_by_id(candidate_doc.get("tender_id"))
+            if not tender:
+                continue
+            if not is_tender_active(tender, now):
+                continue
+            if tender.get("is_active") is not True:
+                continue
+            if (tender.get("status") or {}).get("llm_processed") is not True:
+                continue
+            if not self._tender_matches_request_filters(
+                tender=tender,
+                q=q,
+                state=state,
+                city=city,
+                certification=certification,
+                portal=portal,
+                procurement=procurement,
+                organisation=organisation,
+            ):
+                continue
+            candidate_pairs.append((candidate_doc, tender))
 
         # Exclude tenders the user has discarded
         discarded_ids = await self.action_repo.get_discarded_tender_ids(company_id)
         if discarded_ids:
-            candidates = [
-                t for t in candidates
-                if str(t.get("_id")) not in discarded_ids
+            candidate_pairs = [
+                pair for pair in candidate_pairs
+                if str(pair[1].get("_id")) not in discarded_ids
             ]
 
         # Amount range filtering (done in Python because values are free-form strings)
         if amount_range and amount_range in AMOUNT_RANGES:
             min_amt, max_amt = AMOUNT_RANGES[amount_range]
             filtered_candidates = []
-            for tender in candidates:
+            for candidate_doc, tender in candidate_pairs:
                 meta = tender.get("metadata") or {}
                 scraped = tender.get("scraped_info") or {}
                 amount = (
@@ -219,53 +202,28 @@ class MatchService:
                     or _parse_amount_inr(str(scraped.get("bid_value_range") or ""))
                 )
                 if amount is not None and min_amt <= amount < max_amt:
-                    filtered_candidates.append(tender)
-            candidates = filtered_candidates
+                    filtered_candidates.append((candidate_doc, tender))
+            candidate_pairs = filtered_candidates
 
         profile_embedding = self._profile_embedding(profile)
-        profile_meta = profile.get("metadata") or {}
         profile_text = self._build_profile_text(profile)
 
         scored: List[Dict[str, Any]] = []
-        for tender in candidates:
-            tender_meta = tender.get("metadata") or {}
-            tender_text = self._build_tender_text(tender)
-            tender_embedding = self._tender_embedding(tender, tender_text)
-            embedding_similarity = self._cosine_similarity(profile_embedding, tender_embedding)
-
-            structured_score, structured_reasons = calculate_enhanced_match_score(
-                tender_meta=tender_meta,
-                profile_meta=profile_meta,
-                vector_similarity=embedding_similarity,
+        for candidate_doc, tender in candidate_pairs:
+            score_data = self.score_tender_for_profile(
+                profile=profile,
+                tender=tender,
+                profile_embedding=profile_embedding,
+                profile_text=profile_text,
             )
-
-            overlap_score, overlap_terms = self._profile_tender_overlap_score(profile_text, tender_text)
-
-            boosted_score, boost_reason = self._interest_tag_boost(
-                interest_tags=profile.get("interest_tags") or [],
-                tender_meta=tender_meta,
-            )
-            raw_score = min(
-                (embedding_similarity * 0.55)
-                + (structured_score * 0.35)
-                + (overlap_score * 0.10)
-                + boosted_score,
-                1.0,
-            )
-
-            reasons = list(structured_reasons)
-            reasons.append(f"Embedding similarity: {int(round(embedding_similarity * 100))}%")
-            if overlap_terms:
-                reasons.append(f"Profile-data overlap: {', '.join(overlap_terms[:3])}")
-            if boost_reason:
-                reasons.append(boost_reason)
-
             scored.append(
                 {
                     "tender": tender,
-                    "raw_score": raw_score,
-                    "score": 0.0,
-                    "reasons": reasons,
+                    "raw_score": score_data["raw_score"],
+                    "score": score_data["match_score"],
+                    "qualified": score_data["qualified"],
+                    "reasons": score_data["match_reasons"],
+                    "candidate": candidate_doc,
                 }
             )
 
@@ -277,16 +235,14 @@ class MatchService:
                 "total": 0,
             }
 
-        self._normalize_scores(scored)
-
-        filtered = [item for item in scored if item["score"] >= min_score]
+        filtered = [item for item in scored if item["qualified"] and item["score"] >= min_score]
         if not filtered:
-            sorted_candidates = sorted(scored, key=lambda item: item["score"], reverse=True)
-            fallback_count = min(len(sorted_candidates), max(limit * 3, 10))
-            filtered = sorted_candidates[:fallback_count]
-            for item in filtered:
-                if "Showing closest available matches" not in item["reasons"]:
-                    item["reasons"].insert(0, "Showing closest available matches")
+            return {
+                "items": [],
+                "page": page,
+                "limit": limit,
+                "total": 0,
+            }
 
         sort_key = (sort or "best_match").lower()
         if "closing_soon" in sort_key:
@@ -359,6 +315,9 @@ class MatchService:
         if not tender:
             raise ValueError("Tender not found")
 
+        if not await self.candidate_repo.exists(company_id=company_id, tender_id=str(tender.get("_id"))):
+            raise ValueError("Tender is not available for this company profile")
+
         await self.action_repo.set_action(
             company_id=company_id,
             user_id=user_id,
@@ -377,8 +336,13 @@ class MatchService:
     ) -> Dict[str, Any]:
         action = tab if tab in {"saved", "applied", "discarded"} else None
         skip = max(page - 1, 0) * limit
-        total = await self.action_repo.count_by_company(company_id=company_id, action=action)
-        records = await self.action_repo.list_by_company(company_id=company_id, action=action, skip=skip, limit=limit)
+        all_records = await self.action_repo.list_by_company(company_id=company_id, action=action, skip=0, limit=5000)
+        scoped_records = []
+        for record in all_records:
+            if await self.candidate_repo.exists(company_id=company_id, tender_id=str(record.get("tender_id") or "")):
+                scoped_records.append(record)
+        total = len(scoped_records)
+        records = scoped_records[skip:skip + limit]
 
         tender_ids = [record.get("tender_id") for record in records if record.get("tender_id")]
         tender_map: Dict[str, Dict[str, Any]] = {}
@@ -400,6 +364,61 @@ class MatchService:
 
         return {"items": items, "page": page, "limit": limit, "total": total}
 
+    def score_tender_for_profile(
+        self,
+        *,
+        profile: Dict[str, Any],
+        tender: Dict[str, Any],
+        profile_embedding: Optional[List[float]] = None,
+        profile_text: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        profile_embedding = profile_embedding if profile_embedding is not None else self._profile_embedding(profile)
+        profile_text = profile_text if profile_text is not None else self._build_profile_text(profile)
+        profile_meta = profile.get("metadata") or {}
+
+        tender_meta = tender.get("metadata") or {}
+        tender_text = self._build_tender_text(tender)
+        tender_embedding = self._tender_embedding(tender, tender_text)
+        embedding_similarity = max(0.0, self._cosine_similarity(profile_embedding, tender_embedding))
+        relevance = assess_tender_relevance(profile=profile, tender=tender)
+
+        structured_score, structured_reasons = calculate_enhanced_match_score(
+            tender_meta=tender_meta,
+            profile_meta=profile_meta,
+            vector_similarity=embedding_similarity,
+        )
+        overlap_score, overlap_terms = self._profile_tender_overlap_score(profile_text, tender_text)
+        boosted_score, boost_reason = self._interest_tag_boost(
+            interest_tags=profile.get("interest_tags") or [],
+            tender_meta=tender_meta,
+        )
+        raw_score = min(
+            (embedding_similarity * 0.55)
+            + (structured_score * 0.35)
+            + (overlap_score * 0.10)
+            + boosted_score,
+            1.0,
+        )
+
+        reasons = list(relevance["relevance_reasons"]) + list(structured_reasons)
+        reasons.append(f"Embedding similarity: {int(round(embedding_similarity * 100))}%")
+        if overlap_terms:
+            reasons.append(f"Profile-data overlap: {', '.join(overlap_terms[:3])}")
+        if boost_reason:
+            reasons.append(boost_reason)
+
+        qualified = relevance["accepted"] and raw_score >= settings.MATCH_MIN_QUALIFIED_SCORE
+        return {
+            "raw_score": raw_score,
+            "match_score": raw_score,
+            "match_reasons": reasons,
+            "qualified": qualified,
+            "relevance_status": relevance["relevance_status"],
+            "relevance_score": relevance["relevance_score"],
+            "relevance_reasons": relevance["relevance_reasons"],
+            "matched_core_terms": relevance["matched_core_terms"],
+        }
+
     def _interest_tag_boost(self, interest_tags: List[str], tender_meta: Dict[str, Any]) -> Tuple[float, Optional[str]]:
         if not interest_tags:
             return 0.0, None
@@ -415,7 +434,8 @@ class MatchService:
         summary = (tender_meta.get("summary") or "").lower()
         overlap = set()
         for tag in normalized_tags:
-            if tag in tender_terms or tag in summary:
+            phrase_pattern = rf"(?<![a-z0-9]){re.escape(tag)}(?![a-z0-9])"
+            if tag in tender_terms or re.search(phrase_pattern, summary):
                 overlap.add(tag)
 
         if not overlap:
@@ -527,6 +547,115 @@ class MatchService:
         if denom == 0:
             return 0.0
         return float(np.dot(vec_a, vec_b) / denom)
+
+    async def _find_tender_by_id(self, tender_id: Any) -> Optional[Dict[str, Any]]:
+        if not tender_id:
+            return None
+
+        candidates: List[Any] = []
+        try:
+            candidates.append(ObjectId(str(tender_id)))
+        except Exception:
+            pass
+        candidates.append(str(tender_id))
+
+        for candidate in candidates:
+            tender = await self.tender_repo.collection.find_one({"_id": candidate})
+            if tender:
+                return tender
+        return None
+
+    def _tender_matches_request_filters(
+        self,
+        *,
+        tender: Dict[str, Any],
+        q: Optional[str],
+        state: Optional[str],
+        city: Optional[str],
+        certification: Optional[str],
+        portal: Optional[str],
+        procurement: Optional[str],
+        organisation: Optional[str],
+    ) -> bool:
+        blob = self._search_blob(tender)
+
+        if q:
+            words = [word.strip().lower() for word in q.split() if word.strip()]
+            if any(word not in blob for word in words):
+                return False
+
+        for value in self._split_filter_values(state):
+            if value not in blob:
+                return False
+        for value in self._split_filter_values(city):
+            if value not in blob:
+                return False
+        for value in self._split_filter_values(certification):
+            if value not in self._metadata_list_blob(tender, "required_certifications"):
+                return False
+        if portal and portal.strip().lower() not in str(tender.get("portal") or "").lower():
+            return False
+        if procurement:
+            procurement_text = " ".join(
+                str(part or "")
+                for part in [
+                    (tender.get("scraped_info") or {}).get("bid_type"),
+                    (tender.get("metadata") or {}).get("title"),
+                    (tender.get("metadata") or {}).get("summary"),
+                ]
+            ).lower()
+            if procurement.strip().lower() not in procurement_text:
+                return False
+        for value in self._split_filter_values(organisation):
+            org_blob = " ".join(
+                str(part or "")
+                for part in [
+                    (tender.get("scraped_info") or {}).get("department"),
+                    (tender.get("metadata") or {}).get("department"),
+                ]
+            ).lower()
+            if value not in org_blob:
+                return False
+
+        return True
+
+    def _search_blob(self, tender: Dict[str, Any]) -> str:
+        return " ".join(
+            str(self._nested_get(tender, field) or "")
+            for field in SEARCH_FIELDS
+        ).lower()
+
+    def _metadata_list_blob(self, tender: Dict[str, Any], key: str) -> str:
+        values = (tender.get("metadata") or {}).get(key) or []
+        if not isinstance(values, list):
+            values = [values]
+        return " ".join(str(value or "") for value in values).lower()
+
+    @staticmethod
+    def _nested_get(doc: Dict[str, Any], path: str) -> Any:
+        current: Any = doc
+        for key in path.split("."):
+            if isinstance(current, dict):
+                current = current.get(key)
+            else:
+                return None
+        return current
+
+    @staticmethod
+    def _split_filter_values(value: Optional[str]) -> List[str]:
+        if not value:
+            return []
+        return [item.strip().lower() for item in value.split(",") if item.strip()]
+
+    @staticmethod
+    def _has_meaningful_match(reasons: List[str]) -> bool:
+        meaningful_prefixes = (
+            "Domain match:",
+            "Technology match:",
+            "Capability match:",
+            "Cross match:",
+        )
+        return any(reason.startswith(meaningful_prefixes) for reason in reasons)
 
     def _timestamp(self, value: Any) -> float:
         if isinstance(value, datetime):

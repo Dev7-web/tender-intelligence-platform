@@ -17,11 +17,14 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from tenacity import RetryError
 
 from app.config import settings
+from app.database.repositories.company_tender_candidate_repo import CompanyTenderCandidateRepository
 from app.database.repositories.company_repo import CompanyRepository
 from app.processors.document_extractor import DocumentExtractor, is_extractable_file
 from app.processors.embedder import TextEmbedder
 from app.processors.llm_extractor import LLMExtractor
 from app.services.auth_service import AuthService
+from app.services.company_keywords import generate_tender_search_keywords, utcnow as keyword_utcnow
+from app.services.tender_relevance import build_relevance_terms
 from app.services.company_website_scraper import CompanyWebsiteScraper
 from app.services.socket_manager import manager
 from app.utils.helpers import ensure_dir, safe_filename, sha256_file
@@ -38,6 +41,7 @@ class CompanyService:
     def __init__(self, db: AsyncIOMotorDatabase) -> None:
         self.db = db
         self.repo = CompanyRepository(db)
+        self.candidate_repo = CompanyTenderCandidateRepository(db)
         self.document_extractor = DocumentExtractor()
         self.embedder = TextEmbedder()
         self.website_scraper = CompanyWebsiteScraper()
@@ -70,6 +74,8 @@ class CompanyService:
             "company_url": normalized_url,
             "experience_years": int(experience_years),
             "interest_tags": [],
+            "tender_search_keywords": [],
+            "tender_search_keywords_updated_at": None,
             "website_scrape": {
                 "status": "pending",
                 "pages": [],
@@ -314,6 +320,7 @@ class CompanyService:
         allowed_fields = {
             "name", "company_url", "experience_years", "turnover",
             "description", "interest_tags", "interested_states", "tender_topics",
+            "tender_search_keywords",
         }
         patch: Dict[str, Any] = {}
         for key, value in updates.items():
@@ -331,8 +338,10 @@ class CompanyService:
                 if not parsed.netloc:
                     raise ValueError("Company URL is invalid")
                 patch[key] = normalized
-            elif key in ("interest_tags", "interested_states", "tender_topics") and isinstance(value, list):
+            elif key in ("interest_tags", "interested_states", "tender_topics", "tender_search_keywords") and isinstance(value, list):
                 patch[key] = [tag.strip() for tag in value if isinstance(tag, str) and tag.strip()]
+                if key == "tender_search_keywords":
+                    patch["tender_search_keywords_updated_at"] = keyword_utcnow()
             else:
                 patch[key] = value
 
@@ -445,6 +454,9 @@ class CompanyService:
 
             summary_text = (metadata or {}).get("summary") or ""
             embedding = self.embedder.embed(summary_text)
+            keyword_profile = {**profile, "metadata": metadata}
+            keywords = profile.get("tender_search_keywords") or generate_tender_search_keywords(keyword_profile)
+            relevance_terms = build_relevance_terms({**keyword_profile, "tender_search_keywords": keywords})
 
             await self._broadcast_progress(
                 job="PROCESS_COMPANY",
@@ -472,6 +484,11 @@ class CompanyService:
                 {
                     "metadata": metadata,
                     "summary_embedding": embedding,
+                    "tender_search_keywords": keywords,
+                    "tender_search_keywords_updated_at": utcnow(),
+                    "core_relevance_terms": relevance_terms["core_relevance_terms"],
+                    "context_relevance_terms": relevance_terms["context_relevance_terms"],
+                    "relevance_terms_updated_at": utcnow(),
                     "status": status,
                     "updated_at": utcnow(),
                 },
@@ -485,6 +502,7 @@ class CompanyService:
                 total=3,
                 message="Company profile is ready",
             )
+            self._trigger_company_tender_scrape(company_id, owner_user_id, keywords)
         except Exception as exc:
             error_message = self._normalize_error_message(exc)
             logger.info("company.process_failed", company_id=company_id, error=error_message)
@@ -547,6 +565,13 @@ class CompanyService:
             return full_text[:max_chars]
         return full_text
 
+    def _trigger_company_tender_scrape(self, company_id: str, owner_user_id: str, keywords: List[str]) -> None:
+        if not settings.AUTO_COMPANY_TENDER_SCRAPE or not keywords:
+            return
+        from app.jobs.scrape_job import run_company_scrape_job
+
+        asyncio.create_task(run_company_scrape_job(company_id=company_id, owner_user_id=owner_user_id, keywords=keywords))
+
     async def get_profile(self, company_id: str, owner_user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         profile = await self.repo.get_by_id(company_id)
         if not profile:
@@ -594,7 +619,10 @@ class CompanyService:
             path = file_info.get("local_path")
             if path and os.path.exists(path):
                 os.remove(path)
-        return await self.repo.delete(company_id)
+        deleted = await self.repo.delete(company_id)
+        if deleted:
+            await self.candidate_repo.delete_for_company(company_id)
+        return deleted
 
     async def get_search_history(self, company_id: str, limit: int = 20) -> List[Dict[str, Any]]:
         cursor = (

@@ -136,6 +136,7 @@ class GemScraper:
         max_bids: Optional[int] = None,
         known_bid_ids: Optional[Iterable[str]] = None,
         stop_after_known: Optional[int] = None,
+        search_query: Optional[str] = None,
     ) -> ScrapeResult:
         """Scrape bids from GeM listing pages."""
         return await self._run_in_executor(
@@ -144,6 +145,7 @@ class GemScraper:
             max_bids,
             set(known_bid_ids or []),
             stop_after_known,
+            search_query,
         )
 
     def _sync_scrape_bids(
@@ -152,6 +154,7 @@ class GemScraper:
         max_bids: Optional[int] = None,
         known_bid_ids: Optional[Set[str]] = None,
         stop_after_known: Optional[int] = None,
+        search_query: Optional[str] = None,
     ) -> ScrapeResult:
         """Synchronous scraping - runs in thread."""
         if self.page is None:
@@ -162,8 +165,8 @@ class GemScraper:
         known_bid_ids = known_bid_ids or set()
         stop_after_known = stop_after_known if stop_after_known is not None else settings.SCRAPE_STOP_AFTER_KNOWN_BIDS
 
-        logger.info("scraper.start", max_pages=max_pages, max_bids=max_bids)
-        sort_applied = self._sync_prepare_latest_listing()
+        logger.info("scraper.start", max_pages=max_pages, max_bids=max_bids, search_query=search_query)
+        sort_applied = self._sync_prepare_latest_listing(search_query=search_query)
 
         collected: List[Dict[str, Any]] = []
         seen: set = set()
@@ -230,13 +233,15 @@ class GemScraper:
             sort_applied=sort_applied,
         )
 
-    def _sync_prepare_latest_listing(self) -> bool:
+    def _sync_prepare_latest_listing(self, search_query: Optional[str] = None) -> bool:
         if self.page is None:
             raise RuntimeError("Scraper not initialized")
 
         sort_label = settings.SCRAPE_SORT_LABEL
         self.page.goto(self.BASE_URL, timeout=self.PAGE_LOAD_TIMEOUT, wait_until="networkidle")
         self._sync_ensure_ongoing_bids_filter()
+        if search_query and not self._sync_apply_search_query(search_query):
+            raise RuntimeError(f"Unable to apply GeM search query: {search_query}")
 
         sort_applied = self._sync_select_sort_label(sort_label)
         if sort_applied:
@@ -246,6 +251,73 @@ class GemScraper:
             raise RuntimeError(f"Unable to apply GeM sort option: {sort_label}")
 
         return True
+
+    def _sync_apply_search_query(self, search_query: str) -> bool:
+        if self.page is None:
+            return False
+
+        query = search_query.strip()
+        if not query:
+            return False
+
+        try:
+            applied = bool(
+                self.page.evaluate(
+                    """
+                    (query) => {
+                        const normalize = (value) => (value || "").toLowerCase();
+                        const inputs = Array.from(document.querySelectorAll("input, textarea"));
+                        const input = inputs.find((item) => {
+                            const haystack = [
+                                item.getAttribute("placeholder"),
+                                item.getAttribute("aria-label"),
+                                item.getAttribute("name"),
+                                item.getAttribute("id"),
+                                item.getAttribute("class")
+                            ].map(normalize).join(" ");
+                            return haystack.includes("search")
+                                || haystack.includes("keyword")
+                                || haystack.includes("bid")
+                                || haystack.includes("item");
+                        }) || inputs.find((item) => {
+                            const type = normalize(item.getAttribute("type"));
+                            return type === "search" || type === "text" || !type;
+                        });
+                        if (!input) return false;
+
+                        input.focus();
+                        input.value = query;
+                        input.dispatchEvent(new Event("input", { bubbles: true }));
+                        input.dispatchEvent(new Event("change", { bubbles: true }));
+
+                        const form = input.closest("form");
+                        if (form) {
+                            form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+                        }
+
+                        const buttons = Array.from(document.querySelectorAll("button, input[type='submit']"));
+                        const button = buttons.find((item) => {
+                            const text = normalize(item.textContent || item.value || item.getAttribute("aria-label"));
+                            return text.includes("search") || text.includes("submit");
+                        });
+                        if (button) button.click();
+                        return true;
+                    }
+                    """,
+                    query,
+                )
+            )
+            if not applied:
+                return False
+            try:
+                self.page.wait_for_load_state("networkidle", timeout=self.PAGE_LOAD_TIMEOUT)
+            except Exception as exc:
+                logger.info("scraper.search_networkidle_timeout", error=str(exc), search_query=query)
+            time.sleep(1)
+            return True
+        except Exception as exc:
+            logger.info("scraper.search_apply_failed", error=str(exc), search_query=query)
+            return False
 
     def _sync_ensure_ongoing_bids_filter(self) -> None:
         if self.page is None:

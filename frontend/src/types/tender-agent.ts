@@ -9,6 +9,8 @@ export interface CompanyProfile {
   interest_tags: string[];
   interested_states?: string[];
   tender_topics?: string[];
+  tender_search_keywords?: string[];
+  tender_search_keywords_updated_at?: string;
   website_scrape?: {
     status: string;
     pages: string[];

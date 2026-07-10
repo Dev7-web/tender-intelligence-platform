@@ -192,6 +192,7 @@ const OrganizationPage = () => {
   const [tags, setTags] = useState<string[]>([]);
   const [interestedStates, setInterestedStates] = useState<string[]>([]);
   const [tenderTopics, setTenderTopics] = useState<string[]>([]);
+  const [tenderSearchKeywords, setTenderSearchKeywords] = useState<string[]>([]);
   const [fileItems, setFileItems] = useState<UploadItem[]>([]);
 
   /* ── query ─────────────────────────────────── */
@@ -212,6 +213,7 @@ const OrganizationPage = () => {
     setTags(company.interest_tags || []);
     setInterestedStates(company.interested_states || []);
     setTenderTopics(company.tender_topics || []);
+    setTenderSearchKeywords(company.tender_search_keywords || []);
     setFileItems(
       (company.uploaded_files || []).map((f) => ({
         localId: f.file_hash,
@@ -259,6 +261,7 @@ const OrganizationPage = () => {
       interest_tags: tags,
       interested_states: interestedStates,
       tender_topics: tenderTopics,
+      tender_search_keywords: tenderSearchKeywords,
     });
   };
 
@@ -349,6 +352,7 @@ const OrganizationPage = () => {
                     setTags(company.interest_tags || []);
                     setInterestedStates(company.interested_states || []);
                     setTenderTopics(company.tender_topics || []);
+                    setTenderSearchKeywords(company.tender_search_keywords || []);
                   }
                 }}
                 className="flex items-center gap-1.5 text-sm text-[#6b7280] hover:text-[#374151]"
@@ -405,6 +409,7 @@ const OrganizationPage = () => {
             <TagSection label="Tags" items={tags} setItems={setTags} editing={editing} />
             <TagSection label="Interested States" items={interestedStates} setItems={setInterestedStates} editing={editing} />
             <TagSection label="Tender Topics" items={tenderTopics} setItems={setTenderTopics} editing={editing} />
+            <TagSection label="Tender Search Keywords" items={tenderSearchKeywords} setItems={setTenderSearchKeywords} editing={editing} />
           </div>
         </div>
       </div>

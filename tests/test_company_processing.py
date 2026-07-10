@@ -1,5 +1,6 @@
 import pytest
 
+from app.config import settings
 from app.services.company_service import CompanyService
 
 
@@ -14,6 +15,7 @@ class DummyLLM:
 
 @pytest.mark.asyncio
 async def test_company_processing_pipeline_updates_ready_status(fake_db, monkeypatch):
+    monkeypatch.setattr(settings, "AUTO_COMPANY_TENDER_SCRAPE", False)
     service = CompanyService(fake_db)
 
     profile = {

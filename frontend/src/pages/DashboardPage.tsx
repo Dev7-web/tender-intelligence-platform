@@ -102,8 +102,12 @@ const DashboardPage = () => {
         <div className="flex items-center gap-2">
           <button
             onClick={async () => {
+              if (!companyId) {
+                pushToast("Company profile is required before scraping tenders", "error");
+                return;
+              }
               try {
-                await triggerScrapeAnalyze();
+                await triggerScrapeAnalyze(companyId);
                 pushToast("Scrape & Analyze triggered", "success");
               } catch {
                 pushToast("Unable to trigger scrape job", "error");

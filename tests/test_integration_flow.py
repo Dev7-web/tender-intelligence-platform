@@ -34,6 +34,7 @@ class DummyLLM:
 @pytest.mark.asyncio
 async def test_integration_company_upload_process_and_match(fake_db, monkeypatch, tmp_path):
     monkeypatch.setattr(settings, "PROFILE_UPLOAD_DIR", str(tmp_path))
+    monkeypatch.setattr(settings, "AUTO_COMPANY_TENDER_SCRAPE", False)
 
     company_service = CompanyService(fake_db)
     match_service = MatchService(fake_db)
@@ -89,6 +90,26 @@ async def test_integration_company_upload_process_and_match(fake_db, monkeypatch
                 "summary": "Infrastructure and solar delivery project",
                 "location": "Jaipur",
             },
+        }
+    )
+    now = datetime.now(timezone.utc)
+    await fake_db.get_collection("company_tender_candidates").insert_one(
+        {
+            "company_id": company_id,
+            "tender_id": "tender-1",
+            "bid_id": "GEM/2026/B/200001",
+            "search_keyword": "solar",
+            "raw_score": 0.8,
+            "match_score": 0.8,
+            "match_reasons": ["Domain match: energy"],
+            "qualified": True,
+            "relevance_status": "accepted",
+            "relevance_score": 1.0,
+            "relevance_reasons": ["Matched core profile terms: solar"],
+            "matched_core_terms": ["solar"],
+            "discovered_at": now,
+            "last_scored_at": now,
+            "updated_at": now,
         }
     )
 

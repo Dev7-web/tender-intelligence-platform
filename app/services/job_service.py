@@ -10,7 +10,7 @@ from typing import Any, Dict, Optional
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.jobs.scrape_job import run_process_job, run_scrape_job
+from app.jobs.scrape_job import run_company_scrape_job, run_process_job, run_scrape_job
 from app.jobs.scheduler import scheduler
 from app.services.socket_manager import manager
 
@@ -57,6 +57,21 @@ class JobService:
             }
         )
         return {"triggered": True, "job_type": "scrape"}
+
+    async def trigger_company_scrape(self, company_id: str, owner_user_id: str, keywords: list[str]) -> Dict[str, Any]:
+        asyncio.create_task(run_company_scrape_job(company_id=company_id, owner_user_id=owner_user_id, keywords=keywords))
+        await manager.broadcast(
+            {
+                "type": "JOB_PROGRESS",
+                "job": "COMPANY_SCRAPE_TENDERS",
+                "job_id": "",
+                "status": "started",
+                "progress": {"current": 0, "total": max(len(keywords), 1), "percent": 0},
+                "message": "Company-specific scrape job triggered",
+                "ts": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+        return {"triggered": True, "job_type": "company_scrape", "company_id": company_id, "keywords": keywords}
 
     async def trigger_process(self) -> Dict[str, Any]:
         asyncio.create_task(run_process_job())

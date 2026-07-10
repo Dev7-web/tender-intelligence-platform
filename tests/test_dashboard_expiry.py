@@ -21,6 +21,29 @@ def _tender(tender_id: str, *, end_date, llm_processed: bool, expired: bool = Fa
     }
 
 
+async def _candidate(fake_db, *, company_id: str, tender_id: str, qualified: bool):
+    now = datetime.now(timezone.utc)
+    await fake_db.get_collection("company_tender_candidates").insert_one(
+        {
+            "company_id": company_id,
+            "tender_id": tender_id,
+            "bid_id": tender_id,
+            "search_keyword": "demo",
+            "raw_score": 0.7,
+            "match_score": 0.7,
+            "match_reasons": ["Domain match: demo"],
+            "qualified": qualified,
+            "relevance_status": "accepted",
+            "relevance_score": 1.0,
+            "relevance_reasons": ["Matched core profile terms: demo"],
+            "matched_core_terms": ["demo"],
+            "discovered_at": now,
+            "last_scored_at": now,
+            "updated_at": now,
+        }
+    )
+
+
 @pytest.mark.asyncio
 async def test_dashboard_stats_count_only_active_tenders_and_actions(fake_db, monkeypatch):
     now = datetime.now(timezone.utc)
@@ -37,14 +60,20 @@ async def test_dashboard_stats_count_only_active_tenders_and_actions(fake_db, mo
             "updated_at": now,
         }
     )
-    await tenders.insert_one(_tender("active-analyzed", end_date=now + timedelta(days=5), llm_processed=True))
+    await tenders.insert_one(_tender("active-saved", end_date=now + timedelta(days=5), llm_processed=True))
+    await tenders.insert_one(_tender("active-applied", end_date=now + timedelta(days=5), llm_processed=True))
+    await tenders.insert_one(_tender("active-naive", end_date=(now + timedelta(days=5)).replace(tzinfo=None), llm_processed=True))
     await tenders.insert_one(_tender("expired-analyzed", end_date=now - timedelta(days=5), llm_processed=True))
     await tenders.insert_one(_tender("active-pending", end_date=now + timedelta(days=5), llm_processed=False))
     await tenders.insert_one(_tender("missing-deadline", end_date=None, llm_processed=True))
+    await _candidate(fake_db, company_id="company-1", tender_id="active-saved", qualified=True)
+    await _candidate(fake_db, company_id="company-1", tender_id="active-applied", qualified=True)
+    await _candidate(fake_db, company_id="company-1", tender_id="active-naive", qualified=True)
+    await _candidate(fake_db, company_id="company-1", tender_id="expired-analyzed", qualified=True)
 
-    await actions.insert_one({"company_id": "company-1", "tender_id": "active-analyzed", "action": "saved", "updated_at": now})
+    await actions.insert_one({"company_id": "company-1", "tender_id": "active-saved", "action": "saved", "updated_at": now})
     await actions.insert_one({"company_id": "company-1", "tender_id": "expired-analyzed", "action": "saved", "updated_at": now})
-    await actions.insert_one({"company_id": "company-1", "tender_id": "active-pending", "action": "applied", "updated_at": now})
+    await actions.insert_one({"company_id": "company-1", "tender_id": "active-applied", "action": "applied", "updated_at": now})
 
     service = DashboardService(fake_db)
 
@@ -55,11 +84,11 @@ async def test_dashboard_stats_count_only_active_tenders_and_actions(fake_db, mo
 
     stats = await service.get_stats(owner_user_id="user-1", company_id="company-1", overview_range="7d")
 
-    assert stats["totals"]["tenders_analyzed"] == 1
+    assert stats["totals"]["tenders_analyzed"] == 3
     assert stats["totals"]["tenders_saved"] == 1
     assert stats["totals"]["tenders_applied"] == 1
-    assert stats["overview"]["gathering"] == 2
-    assert stats["overview"]["analyzed"] == 1
+    assert stats["overview"]["gathering"] == 3
+    assert stats["overview"]["analyzed"] == 3
     assert stats["overview"]["saved"] == 1
     assert stats["overview"]["applied"] == 1
     assert (await tenders.find_one({"_id": "expired-analyzed"}))["expired"] is True
@@ -82,9 +111,13 @@ async def test_dashboard_report_and_queue_exclude_expired_and_missing_deadline(f
         }
     )
     await tenders.insert_one(_tender("active-analyzed", end_date=now + timedelta(days=5), llm_processed=True))
+    await tenders.insert_one(_tender("active-unqualified", end_date=now + timedelta(days=5), llm_processed=True))
     await tenders.insert_one(_tender("active-pending", end_date=now + timedelta(days=5), llm_processed=False))
     await tenders.insert_one(_tender("expired-analyzed", end_date=now - timedelta(days=5), llm_processed=True))
     await tenders.insert_one(_tender("missing-pending", end_date=None, llm_processed=False))
+    await _candidate(fake_db, company_id="company-1", tender_id="active-analyzed", qualified=True)
+    await _candidate(fake_db, company_id="company-1", tender_id="active-unqualified", qualified=False)
+    await _candidate(fake_db, company_id="company-1", tender_id="expired-analyzed", qualified=True)
     await actions.insert_one({"company_id": "company-1", "tender_id": "active-analyzed", "action": "saved", "updated_at": now})
     await actions.insert_one({"company_id": "company-1", "tender_id": "expired-analyzed", "action": "saved", "updated_at": now})
 

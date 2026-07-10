@@ -10,6 +10,8 @@ from typing import Any, Dict, List, Tuple
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
+from app.config import settings
+from app.database.repositories.company_tender_candidate_repo import CompanyTenderCandidateRepository
 from app.services.match_service import MatchService
 from app.services.tender_expiry import active_tender_filter, is_tender_active, refresh_expired_flags
 
@@ -26,6 +28,7 @@ class DashboardService:
         self.searches = db.get_collection("search_history")
         self.jobs = db.get_collection("scrape_logs")
         self.actions = db.get_collection("tender_actions")
+        self.candidate_repo = CompanyTenderCandidateRepository(db)
         self.match_service = MatchService(db)
 
     async def get_stats(
@@ -46,9 +49,7 @@ class DashboardService:
         active_company_id = profile.get("company_id") if profile else None
         company_name = (profile or {}).get("name") or "Company"
 
-        analyzed_filter = active_tender_filter(now)
-        analyzed_filter["status.llm_processed"] = True
-        tenders_analyzed = await self.tenders.count_documents(analyzed_filter)
+        tenders_analyzed = await self._count_active_candidates(active_company_id, now) if active_company_id else 0
 
         best_tenders_found = 0
         if active_company_id:
@@ -58,7 +59,7 @@ class DashboardService:
                 q=None,
                 time_period="30d",
                 sort="best_match",
-                min_score=0.8,
+                min_score=settings.MATCH_MIN_QUALIFIED_SCORE,
                 page=1,
                 limit=500,
             )
@@ -120,14 +121,16 @@ class DashboardService:
         for i, start in enumerate(bucket_starts):
             end = bucket_starts[i + 1] if i + 1 < len(bucket_starts) else now + timedelta(seconds=1)
 
-            gathering_filter = active_tender_filter(now)
-            gathering_filter["scraped_at"] = {"$gte": start, "$lt": end}
-            gathering = await self.tenders.count_documents(gathering_filter)
-
-            analyzed_filter = active_tender_filter(now)
-            analyzed_filter["processed_at"] = {"$gte": start, "$lt": end}
-            analyzed_filter["status.llm_processed"] = True
-            analyzed = await self.tenders.count_documents(analyzed_filter)
+            gathering = await self._count_active_candidates(
+                company,
+                now,
+                {"discovered_at": {"$gte": start, "$lt": end}},
+            ) if company else 0
+            analyzed = await self._count_active_candidates(
+                company,
+                now,
+                {"last_scored_at": {"$gte": start, "$lt": end}, "qualified": True},
+            ) if company else 0
             if company:
                 saved = await self._count_active_actions(
                     company,
@@ -230,14 +233,17 @@ class DashboardService:
         return labels, starts
 
     async def _overview_counts(self, company_id: str | None, start: datetime, now: datetime) -> Dict[str, int]:
-        gathering_filter = active_tender_filter(now)
-        gathering_filter["scraped_at"] = {"$gte": start}
-        gathering = await self.tenders.count_documents(gathering_filter)
+        gathering = await self._count_active_candidates(
+            company_id,
+            now,
+            {"discovered_at": {"$gte": start}},
+        ) if company_id else 0
 
-        analyzed_filter = active_tender_filter(now)
-        analyzed_filter["processed_at"] = {"$gte": start}
-        analyzed_filter["status.llm_processed"] = True
-        analyzed = await self.tenders.count_documents(analyzed_filter)
+        analyzed = await self._count_active_candidates(
+            company_id,
+            now,
+            {"last_scored_at": {"$gte": start}, "qualified": True},
+        ) if company_id else 0
 
         saved = await self._count_active_actions(company_id, "saved", now, {"updated_at": {"$gte": start}}) if company_id else 0
         applied = await self._count_active_actions(company_id, "applied", now, {"updated_at": {"$gte": start}}) if company_id else 0
@@ -276,9 +282,33 @@ class DashboardService:
         count = 0
         async for record in self.actions.find(filters):
             tender = await self._find_tender_by_id(record.get("tender_id"))
-            if tender and is_tender_active(tender, now):
-                count += 1
+            if not tender or not is_tender_active(tender, now):
+                continue
+            if not await self.candidate_repo.exists(company_id=company_id, tender_id=str(tender.get("_id"))):
+                continue
+            count += 1
         return count
+
+    async def _count_active_candidates(
+        self,
+        company_id: str,
+        now: datetime,
+        extra_filters: Dict[str, Any] | None = None,
+    ) -> int:
+        filters: Dict[str, Any] = {"company_id": company_id}
+        filters["relevance_status"] = "accepted"
+        if extra_filters:
+            filters.update(extra_filters)
+
+        seen = set()
+        async for candidate in self.candidate_repo.collection.find(filters):
+            tender_id = candidate.get("tender_id")
+            if not tender_id or tender_id in seen:
+                continue
+            tender = await self._find_tender_by_id(tender_id)
+            if tender and is_tender_active(tender, now):
+                seen.add(tender_id)
+        return len(seen)
 
     async def _find_tender_by_id(self, tender_id: Any) -> Dict[str, Any] | None:
         if not tender_id:

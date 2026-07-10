@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     SCRAPE_MAX_DELAY: int = 5
     SCRAPE_SORT_LABEL: str = "Bid Start Date: Latest First"
     SCRAPE_STOP_AFTER_KNOWN_BIDS: int = 20
+    COMPANY_SCRAPE_MAX_KEYWORDS: int = 8
+    MATCH_MIN_QUALIFIED_SCORE: float = 0.35
+    AUTO_COMPANY_TENDER_SCRAPE: bool = True
     SCRAPER_HEADLESS: bool = True
 
     # LLM

@@ -69,7 +69,7 @@ const TendersPage = () => {
       q: searchQuery || undefined,
       time_period: "latest",
       sort,
-      min_score: 0.8,
+      min_score: 0.35,
       page,
       limit: 6,
       state: states.length ? states.join(",") : undefined,
@@ -115,7 +115,7 @@ const TendersPage = () => {
       ? "Latest"
       : sort === "closing_soon"
         ? "Closing Soon"
-        : "Best Match (>80%)";
+        : "Best Match";
 
   useEffect(() => {
     if (!sortOpen) return;
@@ -194,7 +194,7 @@ const TendersPage = () => {
               {sortOpen ? (
                 <div className="absolute right-0 z-10 mt-1 w-full overflow-hidden rounded-md border border-[#d8dce6] bg-white text-[12px] shadow-sm">
                   {[
-                    { value: "best_match", label: "Best Match (>80%)" },
+                    { value: "best_match", label: "Best Match" },
                     { value: "closing_soon", label: "Closing Soon" },
                     { value: "latest", label: "Latest" },
                   ].map((option) => (

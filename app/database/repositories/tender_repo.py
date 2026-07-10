@@ -38,7 +38,13 @@ class TenderRepository:
         return str(existing["_id"]) if existing else ""
 
     async def get_by_id(self, tender_id: str) -> Optional[Dict[str, Any]]:
-        return await self.collection.find_one({"_id": ObjectId(tender_id)})
+        try:
+            tender = await self.collection.find_one({"_id": ObjectId(tender_id)})
+            if tender:
+                return tender
+        except Exception:
+            pass
+        return await self.collection.find_one({"_id": tender_id})
 
     async def get_by_bid_id(self, bid_id: str) -> Optional[Dict[str, Any]]:
         return await self.collection.find_one({"bid_id": bid_id})

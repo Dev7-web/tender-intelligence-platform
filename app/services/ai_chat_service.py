@@ -12,6 +12,7 @@ from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import settings
+from app.database.repositories.company_tender_candidate_repo import CompanyTenderCandidateRepository
 from app.processors.llm_extractor import LLMExtractor
 from app.utils.logger import get_logger
 
@@ -39,6 +40,7 @@ class AIChatService:
         self.tenders = db.get_collection("tenders")
         self.companies = db.get_collection("company_profiles")
         self.chats = db.get_collection("tender_chats")
+        self.candidate_repo = CompanyTenderCandidateRepository(db)
         self.llm = LLMExtractor()
 
     def get_suggestions(self) -> List[str]:
@@ -57,13 +59,15 @@ class AIChatService:
 
         self._check_rate_limit(owner_user_id)
 
-        tender = await self.tenders.find_one({"_id": ObjectId(tender_id)})
+        tender = await self._find_tender(tender_id)
         if not tender:
             raise ValueError("Tender not found")
 
         company = await self.companies.find_one({"company_id": company_id, "owner_user_id": owner_user_id})
         if not company:
             raise ValueError("Company profile not found")
+        if not await self.candidate_repo.exists(company_id=company_id, tender_id=str(tender.get("_id"))):
+            raise ValueError("Tender is not available for this company profile")
 
         chat_doc = None
         if chat_id:
@@ -117,6 +121,15 @@ class AIChatService:
             "chat_id": final_chat_id,
             "reply": reply.strip(),
         }
+
+    async def _find_tender(self, tender_id: str) -> Optional[Dict[str, Any]]:
+        try:
+            tender = await self.tenders.find_one({"_id": ObjectId(tender_id)})
+            if tender:
+                return tender
+        except Exception:
+            pass
+        return await self.tenders.find_one({"_id": tender_id})
 
     def _build_prompt(
         self,

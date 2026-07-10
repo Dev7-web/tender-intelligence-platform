@@ -28,7 +28,7 @@ export const useJob = (jobId?: string) => {
 export const useTriggerScrape = () => {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: triggerScrape,
+    mutationFn: (companyId?: string) => triggerScrape(companyId),
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ["jobs"] });
     },

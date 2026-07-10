@@ -18,7 +18,11 @@ export const fetchJob = async (jobId: string) => {
   return response.data;
 };
 
-export const triggerScrape = async () => {
+export const triggerScrape = async (companyId?: string) => {
+  if (companyId) {
+    const response = await api.post(`/companies/${companyId}/scrape-tenders`);
+    return response.data;
+  }
   const response = await api.post("/jobs/scrape/trigger");
   return response.data;
 };

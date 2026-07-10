@@ -4,6 +4,7 @@ Company profile and onboarding API routes.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -11,7 +12,10 @@ from pydantic import BaseModel, Field
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.api.dependencies import get_current_user, get_db
+from app.config import settings
+from app.services.company_keywords import generate_tender_search_keywords
 from app.services.company_service import CompanyService
+from app.services.job_service import JobService
 from app.services.match_service import MatchService
 
 router = APIRouter(prefix="/companies", tags=["companies"])
@@ -32,6 +36,7 @@ class UpdateCompanyRequest(BaseModel):
     interest_tags: Optional[List[str]] = None
     interested_states: Optional[List[str]] = None
     tender_topics: Optional[List[str]] = None
+    tender_search_keywords: Optional[List[str]] = None
 
 
 class InterestsRequest(BaseModel):
@@ -153,6 +158,36 @@ async def process_company(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+@router.post("/{company_id}/scrape-tenders", response_model=Dict[str, Any])
+async def scrape_company_tenders(
+    company_id: str,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    profile = await db.get_collection("company_profiles").find_one(
+        {"company_id": company_id, "owner_user_id": current_user["id"]}
+    )
+    if not profile:
+        raise HTTPException(status_code=404, detail="Company profile not found")
+
+    keywords = [item.strip() for item in (profile.get("tender_search_keywords") or []) if item and item.strip()]
+    if not keywords:
+        keywords = generate_tender_search_keywords(profile)
+        await db.get_collection("company_profiles").update_one(
+            {"company_id": company_id},
+            {"$set": {"tender_search_keywords": keywords, "tender_search_keywords_updated_at": datetime.now(timezone.utc)}},
+        )
+    if not keywords:
+        raise HTTPException(status_code=400, detail="No tender search keywords available for this company profile")
+
+    service = JobService(db)
+    return await service.trigger_company_scrape(
+        company_id=company_id,
+        owner_user_id=current_user["id"],
+        keywords=keywords,
+    )
+
+
 @router.get("/{company_id}", response_model=Dict[str, Any])
 async def get_company_profile(
     company_id: str,
@@ -205,7 +240,7 @@ async def get_company_matches(
     q: Optional[str] = None,
     time_period: str = "latest",
     sort: str = "best_match",
-    min_score: float = 0.8,
+    min_score: float = settings.MATCH_MIN_QUALIFIED_SCORE,
     page: int = 1,
     limit: int = 10,
     state: Optional[str] = None,
